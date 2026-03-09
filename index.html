@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Dolores - Nerevions Assistant</title>
+<title>Dolores - Nerevions AI Assistant</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/monaco-editor@0.38.1/min/vs/editor/editor.main.css">
 <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.38.1/min/vs/loader.js"></script>
 <style>
@@ -402,15 +402,12 @@ async function doloresRespond(input) {
 
   let responseText = "";
   let usedAI = false;
+  let debugError = "";
 
   if (apiKey) {
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
-
       const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
-        signal: controller.signal,
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${apiKey}`,
@@ -427,8 +424,6 @@ async function doloresRespond(input) {
           max_tokens: 1500
         })
       });
-
-      clearTimeout(timeout);
 
       if (!res.ok) {
         const errBody = await res.text();
@@ -449,7 +444,9 @@ async function doloresRespond(input) {
 
     } catch (err) {
       console.warn("AI unavailable, falling back to KB:", err.message);
+      // Temporarily show the real error so we can debug
       usedAI = false;
+      debugError = err.message;
     }
   }
 
@@ -473,11 +470,12 @@ async function doloresRespond(input) {
     }
   } else {
     if (apiKey) {
-      // Only show the message once per offline session
       if (localStorage.getItem("doloresOffline") !== "1") {
         localStorage.setItem("doloresOffline", "1");
         showModeToast("Dolores is using a less powerful model for a while");
       }
+      // Show real error in chat temporarily for debugging
+      addChatMessage("dolores", "⚠️ Debug: " + (debugError || "unknown error"));
     }
     const kb = queryKnowledgeBase(input);
     renderTypingResponse({ text: kb.text, file: kb.file });

@@ -91,6 +91,9 @@ body,html{margin:0;padding:0;font-family:Arial,sans-serif;background:#1b0f33;col
 /* Toast */
 #copiedToast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#7a2cff,#d38cff);color:white;padding:8px 20px;border-radius:20px;font-size:14px;font-weight:600;opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:9999;}
 #copiedToast.show{opacity:1;}
+/* Mode indicator */
+#modeToast{position:fixed;top:14px;right:14px;background:rgba(27,15,51,0.85);border:1px solid rgba(122,44,255,0.4);color:#d38cff;padding:5px 14px;border-radius:20px;font-size:12px;opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:9999;}
+#modeToast.show{opacity:1;}
 
 /* Settings */
 #settingsOverlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);z-index:6000;overflow:auto;}
@@ -159,6 +162,7 @@ body,html{margin:0;padding:0;font-family:Arial,sans-serif;background:#1b0f33;col
   </div>
 </div>
 <div id="copiedToast">Copied!</div>
+<div id="modeToast"></div>
 
 <!-- Ask Bar -->
 <div id="askBar">
@@ -174,6 +178,7 @@ body,html{margin:0;padding:0;font-family:Arial,sans-serif;background:#1b0f33;col
   <div id="settingsPanel">
     <button style="position:absolute;top:14px;right:14px;font-size:20px;background:none;border:none;color:#9977cc;cursor:pointer;" onclick="closeSettings()">✖</button>
     <h2>Settings</h2>
+    <hr class="settingsDivider">
     <label><input type="checkbox" id="voiceToggle" checked> Voice responses (Dolores speaks)</label>
     <label><input type="checkbox" id="voiceInputToggle" checked> Voice input (mic button)</label>
     <label><input type="checkbox" id="wakeWordToggle" checked> Wake word ("Dolores")</label>
@@ -371,39 +376,139 @@ function addChatMessage(sender, text, isTyping = false) {
   return div;
 }
 
+// ── API Key ───────────────────────────────────────────────────────
+function saveApiKey() {}
+function getApiKey() {
+  return "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";
+}
+
+function openSettings() {
+  document.getElementById("settingsOverlay").style.display = "block";
+}
+
 // ── Dolores Brain ────────────────────────────────────────────────
-function doloresRespond(input) {
+async function doloresRespond(input) {
   const typingDiv = addChatMessage("dolores", "", true);
-  setTimeout(() => {
-    typingDiv.remove();
-    const result = queryKnowledgeBase(input);
-    const useAnim = document.getElementById("typingAnimToggle").checked;
+  const apiKey = getApiKey();
 
-    const msgDiv = document.createElement("div");
-    msgDiv.className = "doloresMsg";
-    document.getElementById("chatContent").appendChild(msgDiv);
+  // Build conversation history for context
+  const chat = recentChats.find(c => c.id === currentChatId);
+  const history = (chat?.messages || []).slice(-10).map(m => ({
+    role: m.sender === "user" ? "user" : "assistant",
+    content: m.text
+  }));
 
-    if (useAnim) {
-      // Build text in a separate string, assign to innerText each tick — preserves spaces
-      let built = "";
-      const chars = Array.from(result.text);
-      let i = 0;
-      const interval = setInterval(() => {
-        built += chars[i];
-        msgDiv.innerText = built; // assign whole string each time, not +=
-        i++;
-        document.getElementById("chatContent").scrollTop = document.getElementById("chatContent").scrollHeight;
-        if (i >= chars.length) {
-          clearInterval(interval);
-          afterDoloresResponse(result, msgDiv);
-        }
-      }, 18);
-    } else {
-      msgDiv.innerText = result.text;
-      document.getElementById("chatContent").scrollTop = document.getElementById("chatContent").scrollHeight;
-      afterDoloresResponse(result, msgDiv);
+  const systemPrompt = `You are Dolores, the Nerevions AI assistant. You are intelligent, helpful, friendly, and concise. You can write code in any language, explain concepts, answer questions, help with creative writing, math, science, advice, and any other task. When writing code, always wrap it in triple backticks with the language name. Keep responses clear and well-structured. Your name is Dolores.`;
+
+  let responseText = "";
+  let usedAI = false;
+
+  if (apiKey) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+          "HTTP-Referer": "https://nerevions.github.io",
+          "X-Title": "Dolores"
+        },
+        body: JSON.stringify({
+          model: "openrouter/auto",
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...history,
+            { role: "user", content: input }
+          ],
+          max_tokens: 1500
+        })
+      });
+
+      clearTimeout(timeout);
+
+      if (!res.ok) {
+        const errBody = await res.text();
+        console.error("OpenRouter error:", res.status, errBody);
+        throw new Error(`HTTP ${res.status}: ${errBody}`);
+      }
+      const data = await res.json();
+      console.log("OpenRouter response:", JSON.stringify(data));
+      const content = data.choices?.[0]?.message?.content?.trim();
+      if (!content) throw new Error("Empty response");
+      responseText = content;
+      usedAI = true;
+      // If we were in fallback mode, notify that we're back
+      if (localStorage.getItem("doloresOffline") === "1") {
+        localStorage.removeItem("doloresOffline");
+        showModeToast("✦ Dolores is back!");
+      }
+
+    } catch (err) {
+      console.warn("AI unavailable, falling back to KB:", err.message);
+      usedAI = false;
     }
-  }, 700);
+  }
+
+  typingDiv.remove();
+
+  if (usedAI) {
+
+    // Detect code block in response
+    const codeMatch = responseText.match(/```(\w+)?\n?([\s\S]*?)```/);
+    if (codeMatch) {
+      const lang = codeMatch[1] || "txt";
+      const code = codeMatch[2].trim();
+      const textBefore = responseText.slice(0, responseText.indexOf("```")).trim();
+      const textAfter = responseText.slice(responseText.lastIndexOf("```") + 3).trim();
+      const displayText = (textBefore || "Here's the code:") + (textAfter ? "\n\n" + textAfter : "");
+      const extMap = { javascript:"js", js:"js", python:"py", html:"html", css:"css", java:"java", cpp:"cpp", typescript:"ts", ts:"ts", bash:"sh", shell:"sh", go:"go", rust:"rs", sql:"sql", c:"c" };
+      const ext = extMap[lang.toLowerCase()] || "txt";
+      renderTypingResponse({ text: displayText, file: { name: `dolores_code.${ext}`, content: code } });
+    } else {
+      renderTypingResponse({ text: responseText });
+    }
+  } else {
+    if (apiKey) {
+      // Only show the message once per offline session
+      if (localStorage.getItem("doloresOffline") !== "1") {
+        localStorage.setItem("doloresOffline", "1");
+        showModeToast("Dolores is using a less powerful model for a while");
+      }
+    }
+    const kb = queryKnowledgeBase(input);
+    renderTypingResponse({ text: kb.text, file: kb.file });
+  }
+}
+
+function renderTypingResponse(result) {
+  const useAnim = document.getElementById("typingAnimToggle").checked;
+  const msgDiv = document.createElement("div");
+  msgDiv.className = "doloresMsg";
+  document.getElementById("chatContent").appendChild(msgDiv);
+
+  if (useAnim) {
+    let built = "";
+    const chars = Array.from(result.text);
+    let i = 0;
+    const interval = setInterval(() => {
+      built += chars[i];
+      msgDiv.innerText = built;
+      i++;
+      document.getElementById("chatContent").scrollTop = document.getElementById("chatContent").scrollHeight;
+      if (i >= chars.length) {
+        clearInterval(interval);
+        afterDoloresResponse(result, msgDiv);
+      }
+    }, 14);
+  } else {
+    msgDiv.innerText = result.text;
+    document.getElementById("chatContent").scrollTop = document.getElementById("chatContent").scrollHeight;
+    afterDoloresResponse(result, msgDiv);
+  }
 }
 
 function afterDoloresResponse(result, msgDiv) {
@@ -416,10 +521,10 @@ function queryKnowledgeBase(input) {
   const lower = input.toLowerCase();
 
   if (/^(hi|hello|hey|sup|yo|what'?s up)\b/.test(lower))
-    return { text: "Hey! I'm Dolores, your Nerevions assistant. Ask me about coding, science, math, writing, and more!" };
+    return { text: "Hey! I'm Dolores, your Nerevions assistant. Ask me about coding, science, math, writing, and more! Add your OpenRouter key in Settings for full AI power." };
 
   if (lower.includes("who are you") || lower.includes("what are you") || lower.includes("your name"))
-    return { text: "I'm Dolores, the Nerevions AI assistant! I know about programming, science, math, writing, and more." };
+    return { text: "I'm Dolores, the Nerevions AI assistant! Add your free OpenRouter key in Settings to unlock full AI responses." };
 
   if (lower.includes("thank"))
     return { text: "You're welcome! Let me know if there's anything else I can help with." };
@@ -451,7 +556,7 @@ function queryKnowledgeBase(input) {
     return { text: bestValue };
   }
 
-  return { text: "Hmm, I don't have info on that yet. Try asking about JavaScript, Python, HTML, CSS, algorithms, math, science, or writing!" };
+  return { text: "I don't have that in my knowledge base. Add your free OpenRouter API key in Settings and I'll be able to answer anything!" };
 }
 
 // ── File Cards ───────────────────────────────────────────────────
@@ -535,6 +640,12 @@ function copyCode() {
     const t = document.getElementById("copiedToast"); t.classList.add("show");
     setTimeout(() => t.classList.remove("show"), 2000);
   }
+}
+
+function showModeToast(msg) {
+  const t = document.getElementById("modeToast");
+  t.innerText = msg; t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2500);
 }
 
 // ── Voice Output ─────────────────────────────────────────────────
@@ -650,7 +761,6 @@ function listenForCommand() {
 }
 
 // ── Settings ─────────────────────────────────────────────────────
-function openSettings() { document.getElementById("settingsOverlay").style.display = "block"; }
 function closeSettings() { document.getElementById("settingsOverlay").style.display = "none"; }
 
 function deleteAllData() {

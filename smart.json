@@ -1,48 +1,24 @@
 {
   "knowledge": {
     "programming": {
-      "javascript closure": "A closure allows a function to remember variables from an outer scope after the outer function finishes.",
-      "python generator": "Generators produce values lazily using the yield keyword.",
-      "binary search": "Binary search works on sorted arrays and runs in O(log n)."
+      "javascript closure": "A closure allows a function to remember variables from its outer scope.",
+      "event loop": "The JavaScript event loop processes asynchronous callbacks using queues."
     },
 
     "science": {
-      "gravity": "Gravity is a force that attracts objects with mass.",
-      "photosynthesis": "Plants convert sunlight, water, and CO2 into glucose and oxygen."
+      "gravity": "Gravity is a force attracting objects with mass.",
+      "atom": "An atom is the smallest unit of matter."
     },
 
     "math": {
-      "derivative": "A derivative measures the rate of change of a function.",
-      "matrix": "A matrix is a rectangular array of numbers used in linear algebra."
+      "derivative": "A derivative represents the rate of change of a function.",
+      "matrix": "A matrix is a grid of numbers used in linear algebra."
     }
   },
 
   "debug": {
-    "javascript undefined": "Check if the variable is declared with let, const, or var.",
+    "undefined variable": "Declare the variable using let, const, or var.",
     "cors error": "Enable Access-Control-Allow-Origin headers.",
     "python indentation": "Python requires consistent indentation."
-  },
-
-  "patterns": {
-    "javascript_function": "function {{name}}({{params}}){\n  {{body}}\n}",
-    "python_function": "def {{name}}({{params}}):\n    {{body}}",
-    "class_js": "class {{name}}{\n constructor({{params}}){\n  {{body}}\n }\n}"
-  },
-
-  "generators": {
-    "todo app": {
-      "files": {
-        "index.html": "<!DOCTYPE html><html><body><h1>Todo</h1><input id='task'><button onclick='add()'>Add</button><ul id='list'></ul><script src='app.js'></script></body></html>",
-        "app.js": "function add(){const t=document.getElementById('task');const li=document.createElement('li');li.innerText=t.value;document.getElementById('list').appendChild(li);}"
-      }
-    },
-
-    "express api": {
-      "files": {
-        "server.js": "const express=require('express');const app=express();app.get('/',(req,res)=>res.send('Hello from Dolores'));app.listen(3000)"
-      }
-    }
-  },
-
-  "image_engine": "pollinations"
+  }
 }

@@ -612,8 +612,10 @@ function renderImageResponse(prompt) {
 // Detects code requests and generates real code locally
 function isCodeRequest(txt) {
   const t = txt.toLowerCase();
+  // "example X file" requests go to KB, not code generator
+  if (/\bexample\b/.test(t) && /\b(js|javascript|html|css|python|java|cpp|c\+\+|react|file)\b/.test(t)) return false;
   return /\b(write|create|make|build|generate|give me|show me|code)\b/.test(t) &&
-    /\b(function|class|script|program|app|component|code|snippet|example|html|css|javascript|js|python|java|c\+\+|sql|api|server|website|page|game|timer|calculator|todo|form|button|menu|navbar|card|modal|animation|counter|clock|converter|quiz)\b/.test(t);
+    /\b(function|class|script|program|app|component|code|snippet|html|css|javascript|js|python|java|c\+\+|sql|api|server|website|page|game|timer|calculator|todo|form|button|menu|navbar|card|modal|animation|counter|clock|converter|quiz)\b/.test(t);
 }
 
 function generateCode(input) {
@@ -1633,7 +1635,22 @@ async function doloresRespond(input) {
     // If math engine couldn't parse it, fall through to AI
   }
 
-  // ── 3. Template / code generator ─────────────────────────────
+  // ── 3. KB query — always before code generator ───────────────
+  const kb = queryKnowledgeBase(input);
+
+  if (kb.special) {
+    typingDiv.remove();
+    renderTypingResponse({ text:kb.text });
+    return;
+  }
+
+  if (kb.score >= 2 && kb.text) {
+    typingDiv.remove();
+    renderTypingResponse({ text:kb.text, file:kb.file });
+    return;
+  }
+
+  // ── 4. Template / code generator ─────────────────────────────
   const tpl = tryTemplateMatch(input);
   if (tpl) {
     typingDiv.remove();
@@ -1654,21 +1671,6 @@ async function doloresRespond(input) {
       renderFileCard(file);
       saveMessage("dolores", `Here's your ${extMap[tpl.lang] || tpl.lang} code!`, file);
     }
-    return;
-  }
-
-  // ── 4. KB query — primary knowledge source ───────────────────
-  const kb = queryKnowledgeBase(input);
-
-  if (kb.special) {
-    typingDiv.remove();
-    renderTypingResponse({ text:kb.text });
-    return;
-  }
-
-  if (kb.score >= 2 && kb.text) {
-    typingDiv.remove();
-    renderTypingResponse({ text:kb.text, file:kb.file });
     return;
   }
 

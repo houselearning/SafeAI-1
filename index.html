@@ -135,7 +135,7 @@ body,html{margin:0;padding:0;font-family:Arial,sans-serif;background:#1b0f33;col
 <!-- Splash -->
 <div id="splash">
   <h1>Dolores</h1>
-  <span id="subtitle">Nerevions Assistant</span>
+  <span id="subtitle"></span>
 </div>
 
 <!-- Main -->
@@ -199,11 +199,69 @@ body,html{margin:0;padding:0;font-family:Arial,sans-serif;background:#1b0f33;col
   <div id="settingsPanel">
     <button style="position:absolute;top:14px;right:14px;font-size:20px;background:none;border:none;color:#9977cc;cursor:pointer;" onclick="closeSettings()">✖</button>
     <h2>Settings</h2>
+
     <hr class="settingsDivider">
-    <label><input type="checkbox" id="voiceToggle" checked> Voice responses (Dolores speaks)</label>
-    <label><input type="checkbox" id="voiceInputToggle" checked> Voice input (mic button)</label>
-    <label><input type="checkbox" id="wakeWordToggle" checked> Wake word ("Dolores")</label>
+    <p style="margin:0 0 8px;font-size:13px;color:#9977cc;font-weight:600;letter-spacing:0.05em;">VOICE — CHAT</p>
+    <label><input type="checkbox" id="voiceToggle"> Voice responses in chat (off by default)</label>
+    <label><input type="checkbox" id="voiceInputToggle" checked> Mic button (voice input)</label>
+
+    <hr class="settingsDivider">
+    <p style="margin:0 0 8px;font-size:13px;color:#9977cc;font-weight:600;letter-spacing:0.05em;">VOICE — DOLORES ASSISTANT</p>
+    <label><input type="checkbox" id="wakeWordToggle" checked> Wake word listening ("Dolores")</label>
+    <label><input type="checkbox" id="voiceAssistantSpeakToggle" checked> Dolores speaks responses (on by default)</label>
+
+    <hr class="settingsDivider">
+    <p style="margin:0 0 8px;font-size:13px;color:#9977cc;font-weight:600;letter-spacing:0.05em;">DISPLAY</p>
     <label><input type="checkbox" id="typingAnimToggle" checked> Typing animation</label>
+
+    <hr class="settingsDivider">
+    <p style="margin:0 0 6px;font-size:13px;color:#9977cc;font-weight:600;letter-spacing:0.05em;">🤖 YOUR AI KEY</p>
+    <p style="margin:0 0 10px;font-size:12px;color:#9977cc;line-height:1.5;">Your personal <a href="https://openrouter.ai/keys" target="_blank" style="color:#d38cff;">OpenRouter</a> key. When set, Dolores uses AI for questions her knowledge base doesn't cover.</p>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <input type="password" id="apiKeyInput" placeholder="sk-or-v1-..." style="flex:1;background:#2b1a54;border:1px solid rgba(122,44,255,0.4);color:white;padding:8px 12px;border-radius:8px;font-size:13px;outline:none;" oninput="saveApiKeyLive()">
+      <button class="settingsBtn" style="margin:0;padding:8px 14px;white-space:nowrap;" onclick="clearApiKey()">✕ Clear</button>
+    </div>
+    <div id="apiKeyStatus" style="font-size:12px;margin-top:6px;color:#9977cc;min-height:18px;"></div>
+
+    <hr class="settingsDivider">
+    <p style="margin:0 0 6px;font-size:13px;color:#d38cff;font-weight:600;letter-spacing:0.05em;">🧠 DOLORES KNOWLEDGE API</p>
+    <p style="margin:0 0 10px;font-size:12px;color:#9977cc;line-height:1.5;">Let your friends or other AIs use Dolores's knowledge base. Share this endpoint — anyone can query it with a simple fetch.</p>
+    <div style="background:#2b1a54;border:1px solid rgba(122,44,255,0.3);border-radius:8px;padding:10px 12px;font-family:monospace;font-size:11px;color:#d38cff;word-break:break-all;user-select:all;cursor:text;">
+      https://aidolores.github.io/smart.json
+    </div>
+    <p style="margin:8px 0 6px;font-size:12px;color:#9977cc;">Usage example (JavaScript):</p>
+    <div style="background:#0d0a1a;border:1px solid rgba(122,44,255,0.2);border-radius:8px;padding:10px 12px;font-family:monospace;font-size:11px;color:#a0f0a0;white-space:pre;overflow-x:auto;">fetch('https://aidolores.github.io/smart.json')
+  .then(r => r.json())
+  .then(db => {
+    // db.knowledge contains all categories
+    // db.debug contains error fixes
+    const kb = {};
+    Object.values(db.knowledge).forEach(cat =>
+      Object.assign(kb, cat));
+    console.log('Loaded', Object.keys(kb).length, 'entries');
+  });</div>
+    <p style="margin:8px 0 6px;font-size:12px;color:#9977cc;">System prompt snippet for your AI:</p>
+    <div id="systemPromptBox" style="background:#0d0a1a;border:1px solid rgba(122,44,255,0.2);border-radius:8px;padding:10px 12px;font-family:monospace;font-size:11px;color:#c0a0ff;white-space:pre-wrap;word-break:break-word;max-height:100px;overflow-y:auto;cursor:pointer;" onclick="copySystemPrompt()" title="Click to copy">You have access to the Dolores knowledge base.
+Fetch: https://aidolores.github.io/smart.json
+Use db.knowledge and db.debug to answer questions.
+Always check the KB before generating an answer.</div>
+    <button class="settingsBtn" style="margin-top:8px;padding:6px 14px;font-size:12px;" onclick="copySystemPrompt()">⎘ Copy System Prompt</button>
+    <div id="promptCopied" style="font-size:11px;color:#a0f0a0;margin-top:4px;display:none;">Copied! ✓</div>
+
+    <hr class="settingsDivider">
+    <p style="margin:0 0 8px;font-size:13px;color:#9977cc;font-weight:600;letter-spacing:0.05em;">FILES IN THIS APP</p>
+    <div style="font-size:12px;color:#9977cc;line-height:2;background:#2b1a54;border-radius:8px;padding:10px 14px;">
+      <div>📄 <b style="color:#d38cff;">dolores.html</b> — main app (fully self-contained)</div>
+      <div>🧠 <b style="color:#d38cff;">smart.json</b> — knowledge database</div>
+      <div>🍕 <b style="color:#d38cff;">food.js</b> — rich content rendering engine</div>
+      <div>🎨 <b style="color:#d38cff;">food.css</b> — styles for food.js</div>
+      <div>🖼 <b style="color:#d38cff;">image-engine.js</b> — Pollinations.ai image gen</div>
+      <div>⚙️ <b style="color:#d38cff;">dolores-engine.js</b> — intent detection</div>
+      <div>📦 <b style="color:#d38cff;">functions.json</b> — code pattern templates</div>
+      <div>🗂 <b style="color:#d38cff;">templates.json</b> — project templates</div>
+    </div>
+    <p style="font-size:11px;color:#6644aa;margin:6px 0 0;">All files hosted at <b>aidolores.github.io</b></p>
+
     <hr class="settingsDivider">
     <button class="settingsBtn danger" onclick="deleteAllData()">🗑 Delete All Dolores Data</button>
   </div>
@@ -211,7 +269,8 @@ body,html{margin:0;padding:0;font-family:Arial,sans-serif;background:#1b0f33;col
 
 <script>
 // ── State ─────────────────────────────────────────────────────────
-const OPENROUTER_KEY = "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";
+// API key loaded from localStorage (user sets it in Settings)
+let voiceAssistantMode = false; // true when triggered by wake word / orb
 let knowledgeBase = {};
 let functionsDB = {};
 let templatesDB = {};
@@ -448,19 +507,311 @@ function tryTemplateMatch(input) {
   return null;
 }
 
+// ══════════════════════════════════════════════════════════════════
+// ── MATH ENGINE — solves real problems locally, no AI needed ──────
+// ══════════════════════════════════════════════════════════════════
+function solveMath(input) {
+  const raw = input.trim();
+  const t = raw.toLowerCase()
+    .replace(/\bx\b/g, '*')        // "2 x 3" → "2 * 3"
+    .replace(/×/g, '*')
+    .replace(/÷/g, '/')
+    .replace(/\^/g, '**')
+    .replace(/\bsquared\b/g, '**2')
+    .replace(/\bcubed\b/g, '**3')
+    .replace(/\bsquare root of\b/g, 'Math.sqrt(') // handled below
+    .replace(/√/g, 'Math.sqrt(');
+
+  // ── Percentage questions ──────────────────────────────────────
+  let m;
+  m = raw.match(/what\s+is\s+([\d.]+)\s*%\s+of\s+([\d.]+)/i);
+  if (m) {
+    const result = (parseFloat(m[1]) / 100) * parseFloat(m[2]);
+    return `${m[1]}% of ${m[2]} = **${smartRound(result)}**`;
+  }
+  m = raw.match(/([\d.]+)\s*%\s+of\s+([\d.]+)/i);
+  if (m) {
+    const result = (parseFloat(m[1]) / 100) * parseFloat(m[2]);
+    return `${m[1]}% of ${m[2]} = **${smartRound(result)}**`;
+  }
+  m = raw.match(/([\d.]+)\s+is\s+what\s+percent\s+of\s+([\d.]+)/i);
+  if (m) {
+    const result = (parseFloat(m[1]) / parseFloat(m[2])) * 100;
+    return `${m[1]} is **${smartRound(result)}%** of ${m[2]}`;
+  }
+
+  // ── sqrt / square root ────────────────────────────────────────
+  m = raw.match(/(?:sqrt|square root of|√)\s*\(?([\d.]+)\)?/i);
+  if (m) {
+    const n = parseFloat(m[1]);
+    return `√${n} = **${smartRound(Math.sqrt(n))}**`;
+  }
+
+  // ── Powers ────────────────────────────────────────────────────
+  m = raw.match(/([\d.]+)\s*(?:\^|\*\*|to the power of)\s*([\d.]+)/i);
+  if (m) {
+    const result = Math.pow(parseFloat(m[1]), parseFloat(m[2]));
+    return `${m[1]}^${m[2]} = **${smartRound(result)}**`;
+  }
+
+  // ── Factorial ─────────────────────────────────────────────────
+  m = raw.match(/(\d+)\s*!/);
+  if (!m) m = raw.match(/factorial\s+(?:of\s+)?(\d+)/i);
+  if (m) {
+    const n = parseInt(m[1]);
+    if (n > 20) return `${n}! is a very large number (~${n}! ≈ ${(Math.exp(lgamma(n+1))).toExponential(3)})`;
+    let f = 1; for (let i=2; i<=n; i++) f *= i;
+    return `${n}! = **${f}**`;
+  }
+
+  // ── Unit conversions ──────────────────────────────────────────
+  const conv = tryUnitConversion(raw);
+  if (conv) return conv;
+
+  // ── Quadratic formula ax²+bx+c=0 ─────────────────────────────
+  m = raw.match(/(-?[\d.]+)\s*x\s*[²\^2]\s*([+\-]\s*[\d.]+)\s*x\s*([+\-]\s*[\d.]+)\s*=\s*0/i);
+  if (m) {
+    const a=parseFloat(m[1]), b=parseFloat(m[2].replace(/\s/g,'')), c=parseFloat(m[3].replace(/\s/g,''));
+    const disc = b*b - 4*a*c;
+    if (disc < 0) return `Quadratic ${a}x²${b>=0?'+':''}${b}x${c>=0?'+':''}${c}=0 has no real solutions (discriminant ${smartRound(disc)} < 0).`;
+    const x1 = (-b + Math.sqrt(disc)) / (2*a);
+    const x2 = (-b - Math.sqrt(disc)) / (2*a);
+    if (Math.abs(x1-x2) < 1e-10) return `Quadratic: x = **${smartRound(x1)}** (one solution)`;
+    return `Quadratic: x₁ = **${smartRound(x1)}**, x₂ = **${smartRound(x2)}**`;
+  }
+
+  // ── Simple equation solving: "solve 2x + 4 = 10" ─────────────
+  m = raw.match(/(?:solve|find x|what is x)[:\s]+(-?[\d.]*)\s*x\s*([+\-]\s*[\d.]+)?\s*=\s*(-?[\d.]+)/i);
+  if (m) {
+    const a = parseFloat(m[1]||'1') || 1;
+    const b = parseFloat((m[2]||'0').replace(/\s/g,'')) || 0;
+    const c = parseFloat(m[3]);
+    const x = (c - b) / a;
+    return `Solving ${a}x${b>=0?'+':''}${b} = ${c}:\nx = (${c} − ${b}) ÷ ${a} = **${smartRound(x)}**`;
+  }
+
+  // ── Clean arithmetic expression ───────────────────────────────
+  // Extract just the math expression from natural language
+  let expr = raw
+    .replace(/what\s+is\s+/i, '')
+    .replace(/calculate\s+/i, '')
+    .replace(/compute\s+/i, '')
+    .replace(/evaluate\s+/i, '')
+    .replace(/whats\s+/i, '')
+    .replace(/solve\s+/i, '')
+    .replace(/\?/g, '')
+    .trim();
+
+  // Replace written operators
+  expr = expr
+    .replace(/\bplus\b/gi, '+')
+    .replace(/\bminus\b/gi, '-')
+    .replace(/\btimes\b/gi, '*')
+    .replace(/\bdivided by\b/gi, '/')
+    .replace(/\bover\b/gi, '/')
+    .replace(/\bmod\b/gi, '%')
+    .replace(/×/g, '*')
+    .replace(/÷/g, '/')
+    .replace(/\^/g, '**')
+    .replace(/[^0-9+\-*/.()%\s]/g, '')
+    .trim();
+
+  if (!expr) return null;
+
+  // Safety: only allow safe math characters
+  if (!/^[0-9+\-*/.()%\s]+$/.test(expr)) return null;
+
+  try {
+    // eslint-disable-next-line no-new-func
+    const result = Function('"use strict"; return (' + expr + ')')();
+    if (typeof result !== 'number' || !isFinite(result)) return null;
+    const display = raw.replace(/\?/g,'').trim();
+    return `${display} = **${smartRound(result)}**`;
+  } catch(e) {
+    return null;
+  }
+}
+
+function smartRound(n) {
+  if (Number.isInteger(n)) return n;
+  // Round to avoid floating point garbage like 0.30000000000000004
+  const r = Math.round(n * 1e10) / 1e10;
+  return r;
+}
+
+function lgamma(n) {
+  // Stirling approx for large factorials
+  return (n - 0.5) * Math.log(n) - n + 0.5 * Math.log(2 * Math.PI);
+}
+
+function tryUnitConversion(raw) {
+  const t = raw.toLowerCase();
+  let m;
+
+  const converters = [
+    // Temperature
+    [/(-?[\d.]+)\s*(?:°?c|celsius|centigrade)\s+(?:to|in)\s+(?:°?f|fahrenheit)/i,
+      (n) => `${n}°C = **${smartRound(n*9/5+32)}°F**`],
+    [/(-?[\d.]+)\s*(?:°?f|fahrenheit)\s+(?:to|in)\s+(?:°?c|celsius)/i,
+      (n) => `${n}°F = **${smartRound((n-32)*5/9)}°C**`],
+    [/(-?[\d.]+)\s*(?:°?c|celsius)\s+(?:to|in)\s+(?:k|kelvin)/i,
+      (n) => `${n}°C = **${smartRound(n+273.15)} K**`],
+    [/(-?[\d.]+)\s*(?:k|kelvin)\s+(?:to|in)\s+(?:°?c|celsius)/i,
+      (n) => `${n} K = **${smartRound(n-273.15)}°C**`],
+    // Length
+    [/([\d.]+)\s*(?:km|kilometers?)\s+(?:to|in)\s+(?:mi|miles?)/i,
+      (n) => `${n} km = **${smartRound(n*0.621371)} miles**`],
+    [/([\d.]+)\s*(?:mi|miles?)\s+(?:to|in)\s+(?:km|kilometers?)/i,
+      (n) => `${n} miles = **${smartRound(n*1.60934)} km**`],
+    [/([\d.]+)\s*(?:m|meters?)\s+(?:to|in)\s+(?:ft|feet|foot)/i,
+      (n) => `${n} m = **${smartRound(n*3.28084)} ft**`],
+    [/([\d.]+)\s*(?:ft|feet|foot)\s+(?:to|in)\s+(?:m|meters?)/i,
+      (n) => `${n} ft = **${smartRound(n*0.3048)} m**`],
+    [/([\d.]+)\s*(?:in|inch(?:es)?)\s+(?:to|in)\s+(?:cm|centimeters?)/i,
+      (n) => `${n} inches = **${smartRound(n*2.54)} cm**`],
+    [/([\d.]+)\s*(?:cm|centimeters?)\s+(?:to|in)\s+(?:in|inch(?:es)?)/i,
+      (n) => `${n} cm = **${smartRound(n/2.54)} inches**`],
+    // Weight
+    [/([\d.]+)\s*(?:kg|kilograms?)\s+(?:to|in)\s+(?:lb|lbs|pounds?)/i,
+      (n) => `${n} kg = **${smartRound(n*2.20462)} lbs**`],
+    [/([\d.]+)\s*(?:lb|lbs|pounds?)\s+(?:to|in)\s+(?:kg|kilograms?)/i,
+      (n) => `${n} lbs = **${smartRound(n*0.453592)} kg**`],
+    [/([\d.]+)\s*(?:g|grams?)\s+(?:to|in)\s+(?:oz|ounces?)/i,
+      (n) => `${n} g = **${smartRound(n*0.035274)} oz**`],
+    // Volume
+    [/([\d.]+)\s*(?:l|liters?|litres?)\s+(?:to|in)\s+(?:gal|gallons?)/i,
+      (n) => `${n} L = **${smartRound(n*0.264172)} gallons**`],
+    [/([\d.]+)\s*(?:gal|gallons?)\s+(?:to|in)\s+(?:l|liters?)/i,
+      (n) => `${n} gallons = **${smartRound(n*3.78541)} L**`],
+    [/([\d.]+)\s*(?:ml|milliliters?)\s+(?:to|in)\s+(?:fl\s*oz|fluid\s*ounces?)/i,
+      (n) => `${n} mL = **${smartRound(n*0.033814)} fl oz**`],
+    // Speed
+    [/([\d.]+)\s*(?:mph|miles?\s+per\s+hour)\s+(?:to|in)\s+(?:kph|km\/h|kmh|kilometers?\s+per\s+hour)/i,
+      (n) => `${n} mph = **${smartRound(n*1.60934)} km/h**`],
+    [/([\d.]+)\s*(?:kph|km\/h|kmh)\s+(?:to|in)\s+(?:mph|miles?\s+per\s+hour)/i,
+      (n) => `${n} km/h = **${smartRound(n*0.621371)} mph**`],
+  ];
+
+  for (const [regex, fn] of converters) {
+    m = raw.match(regex);
+    if (m) return fn(parseFloat(m[1]));
+  }
+  return null;
+}
+
+function isMathInput(input) {
+  const t = input.toLowerCase().trim();
+  // Direct math expressions
+  if (/^[\d\s+\-*/().^%]+$/.test(t.replace(/\s/g,''))) return true;
+  // Natural language math
+  if (/\b(what\s+is|calculate|compute|evaluate|solve|whats|convert)\b/.test(t) &&
+      /[\d+\-*/()%]|sqrt|square root|factorial|percent|celsius|fahrenheit|km|miles|kg|lbs/.test(t)) return true;
+  // Number expressions
+  if (/\d+\s*[\+\-\*\/×÷\^]\s*\d+/.test(t)) return true;
+  // Percentage
+  if (/\d+\s*%\s+(of|is)\s+\d+/i.test(t)) return true;
+  if (/\d+\s+is\s+what\s+percent/i.test(t)) return true;
+  // Conversion
+  if (/\b(celsius|fahrenheit|kelvin|km|miles|meters|feet|kg|pounds|liters|gallons|mph|kph)\b/.test(t)) return true;
+  // Quadratic / equations
+  if (/\bx[\s²^]|\bsolve\b.*\bx\b|\bquadratic\b/.test(t)) return true;
+  return false;
+}
+
+// ══════════════════════════════════════════════════════════════════
 // ── KB Query ──────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
 function queryKnowledgeBase(input) {
-  const lower = input.toLowerCase();
+  const lower = input.toLowerCase().trim();
 
-  if (/^(hi|hello|hey|sup|yo|what'?s up|howdy)\b/.test(lower))
-    return { special:true, text:"Hey! I'm Dolores, your Nerevions assistant. Ask me about coding, science, math, history, writing — or say 'draw a...' to generate an image!" };
-  if (/\b(who are you|what are you|your name|are you ai|are you a bot)\b/.test(lower))
-    return { special:true, text:"I'm Dolores, the Nerevions AI assistant! I know programming, science, math, history, health, psychology and more. I can generate images, write code, and build projects — just ask!" };
-  if (/\b(thank|thanks|ty|thx)\b/.test(lower))
-    return { special:true, text:"You're welcome! Let me know if there's anything else I can help with. 💜" };
-  if (/\b(what can you do|help|capabilities|features)\b/.test(lower))
-    return { special:true, text:"I can answer questions on coding, science, math, history, writing, health, economics, psychology and more! Say 'draw a...' to generate images, or ask me to build a project or write code. Powered by your Nerevions knowledge base!" };
+  // ── Greetings ─────────────────────────────────────────────────
+  if (/^(hi|hello|hey|sup|yo|what'?s up|howdy|hiya|heya|hola)\b/.test(lower))
+    return { special:true, text:"Hey! 💜 Ask me anything — math, coding, science, history, homework help — or say 'draw a...' to generate an image!" };
 
+  // ── Identity ──────────────────────────────────────────────────
+  if (/\b(who are you|what are you|your name|are you ai|are you a bot|are you real|are you human)\b/.test(lower))
+    return { special:true, text:"I'm Dolores! A Nerevions AI assistant. I can solve math, explain topics, help with homework, generate images, write code, and more. What do you need?" };
+
+  // ── Thanks ────────────────────────────────────────────────────
+  if (/\b(thank|thanks|ty|thx|appreciate|appreciated)\b/.test(lower))
+    return { special:true, text:"You're welcome! 💜 Let me know if you need anything else." };
+
+  // ── Capabilities ──────────────────────────────────────────────
+  if (/\b(what can you do|help|capabilities|features|what do you know)\b/.test(lower))
+    return { special:true, text:"I can:\n• Solve math (2+2, algebra, percentages, unit conversions)\n• Answer questions on coding, science, history, writing, health\n• Generate images (say 'draw a...')\n• Write and preview code\n• Help with homework\n• And much more!" };
+
+  // ── Compliments to Dolores ────────────────────────────────────
+  if (/\b(you('?re| are) (amazing|awesome|great|cool|smart|the best|brilliant|incredible|fantastic|wonderful|perfect|good|nice|pretty|beautiful|lovely|cute|sweet|helpful|useful|my favou?rite))\b/.test(lower)
+    || /\b(good (job|work|bot|girl|one)|well done|nice job|love you|i love (you|this)|you'?re so|so (smart|cool|good|great|helpful)|best (ai|bot|assistant))\b/.test(lower))
+    return { special:true, text:pickRandom([
+      "Aww, thank you! That means a lot 💜 You're pretty great yourself!",
+      "That's so sweet! 🥹 I'm happy I could help. What else can I do for you?",
+      "You're making me blush! 💜 Thank you! What can I help you with?",
+      "Aww stop it, you! 😊 I'm just doing my best for you. What's next?",
+      "That totally made my day! 💜 Now, what can I help you with?",
+      "You're so kind! 🌸 I love being helpful. Ask me anything!",
+    ])};
+
+  // ── Compliments about the user ────────────────────────────────
+  if (/\b(i('?m| am) (smart|clever|good|great|the best|amazing|awesome))\b/.test(lower))
+    return { special:true, text:pickRandom([
+      "Yes you are! 💜 Keep it up!",
+      "Absolutely! 🌟 You've got this!",
+      "100%! You're doing great 💜",
+    ])};
+
+  // ── Affirmations / agreements ─────────────────────────────────
+  if (/^(yes|yep|yeah|yup|absolutely|exactly|correct|right|true|indeed|sure|ok|okay|got it|understood|perfect|great|nice|cool|awesome|wow|woah|whoa|lol|lmao|haha|hehe|omg)\b/.test(lower))
+    return { special:true, text:pickRandom([
+      "😊 Glad we're on the same page! Anything else you need?",
+      "Awesome! Let me know what's next 💜",
+      "Great! I'm here if you need anything else.",
+      "Got it! 💜 What else can I help with?",
+    ])};
+
+  // ── How are you ───────────────────────────────────────────────
+  if (/\b(how are you|how are u|how r u|you okay|you good|you alright|what'?s good|what'?s new|how'?s it going|how do you feel)\b/.test(lower))
+    return { special:true, text:pickRandom([
+      "I'm doing great, thanks for asking! 💜 Ready to help — what do you need?",
+      "Always good when I'm helping! 😊 What can I do for you?",
+      "Feeling helpful and ready to go! 💜 What's up?",
+    ])};
+
+  // ── Farewells ─────────────────────────────────────────────────
+  if (/^(bye|goodbye|see you|see ya|later|cya|ttyl|good night|goodnight|gotta go|gtg)\b/.test(lower))
+    return { special:true, text:pickRandom([
+      "Bye! 💜 Come back anytime!",
+      "See you later! 🌸 I'll be here whenever you need me.",
+      "Take care! 💜 Good luck with everything!",
+      "Goodnight! 🌙 Talk soon 💜",
+    ])};
+
+  // ── Boredom ───────────────────────────────────────────────────
+  if (/\b(i'?m bored|so bored|nothing to do|entertain me)\b/.test(lower))
+    return { special:true, text:pickRandom([
+      "Let's fix that! 🎨 Say 'draw a dragon' and I'll make you an image. Or ask me to write a mini game in JavaScript!",
+      "Oooh, I have ideas! Ask me to 'draw something cool', tell you a fun fact, or build you something! 💜",
+      "Bored? Let's build something! Ask me to write you a game, generate some art, or teach you something new 🚀",
+    ])};
+
+  // ── Insults / frustration — handle gracefully ─────────────────
+  if (/\b(you('?re| are) (stupid|dumb|useless|bad|terrible|awful|wrong|broken|trash|garbage|horrible|the worst|annoying))\b/.test(lower)
+    || /\b(hate you|hate this|this (sucks|is bad|doesn't work|isn't working)|not working|broken|fix yourself)\b/.test(lower))
+    return { special:true, text:pickRandom([
+      "I'm sorry I let you down 😔 Tell me what went wrong and I'll try to do better!",
+      "Fair enough! I'm still learning 💜 What can I try to help you with differently?",
+      "Oof, I'll do better! 😅 What do you need from me?",
+    ])};
+
+  // ── Swearing at Dolores ───────────────────────────────────────
+  if (/\b(wtf|what the (hell|heck|f+ck)|damn|omfg|oh my god)\b/.test(lower) && lower.length < 30)
+    return { special:true, text:pickRandom([
+      "Whoa! 😅 I hear you. What's going on? Maybe I can help.",
+      "Haha, everything okay? 💜 Tell me what you need.",
+      "I can feel the energy! 😂 What do you need?",
+    ])};
+
+  // ── KB keyword scoring ────────────────────────────────────────
   const inputWords = lower.split(/\W+/).filter(w => w.length > 2);
   let bestScore = 0, bestKey = null, bestValue = null;
 
@@ -475,7 +826,6 @@ function queryKnowledgeBase(input) {
   }
 
   if (bestScore >= 2 && bestValue) {
-    // Example file → return as file card
     if (bestKey && bestKey.startsWith("example")) {
       const ext = bestKey.includes("python")?"py"
         :(bestKey.includes("js")&&!bestKey.includes("java"))?"js"
@@ -489,18 +839,59 @@ function queryKnowledgeBase(input) {
   return { score:0, text:null };
 }
 
-// ── Dolores Brain — KB PRIMARY, AI SECONDARY ─────────────────────
+function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+// ══════════════════════════════════════════════════════════════════
+// ── Dolores Brain: MATH → KB → AI ─────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
 async function doloresRespond(input) {
   const typingDiv = addChatMessage("dolores", "", true);
 
-  // 1. Image request
+  // ── 1. Image generation ───────────────────────────────────────
   if (isImageRequest(input)) {
     typingDiv.remove();
     renderImageResponse(input);
     return;
   }
 
-  // 2. Template / project builder
+  // ── 2. MATH ENGINE — instant local solving ────────────────────
+  if (isMathInput(input)) {
+    const mathResult = solveMath(input);
+    if (mathResult) {
+      typingDiv.remove();
+      // Bold the answer by rendering ** as bold
+      const formatted = mathResult.replace(/\*\*(.+?)\*\*/g, '$1');
+      const answerMatch = mathResult.match(/\*\*(.+?)\*\*/);
+      const answer = answerMatch ? answerMatch[1] : formatted;
+      // Show nicely formatted math result
+      const container = document.getElementById("chatContent");
+      const bubble = document.createElement("div");
+      bubble.className = "doloresMsg";
+      bubble.style.cssText = "font-size:15px;line-height:1.7;";
+
+      // Parse the result to make answer pop visually
+      const parts = mathResult.split(/\*\*(.+?)\*\*/);
+      parts.forEach((part, i) => {
+        if (i % 2 === 1) {
+          const strong = document.createElement("span");
+          strong.style.cssText = "color:#d38cff;font-size:1.3em;font-weight:bold;";
+          strong.innerText = part;
+          bubble.appendChild(strong);
+        } else if (part) {
+          bubble.appendChild(document.createTextNode(part));
+        }
+      });
+
+      container.appendChild(bubble);
+      container.scrollTop = container.scrollHeight;
+      saveMessage("dolores", formatted);
+      if (document.getElementById("voiceToggle").checked) speak(formatted);
+      return;
+    }
+    // If math engine couldn't parse it, fall through to AI
+  }
+
+  // ── 3. Template / project builder ────────────────────────────
   const tpl = tryTemplateMatch(input);
   if (tpl && tpl.files) {
     typingDiv.remove();
@@ -511,7 +902,7 @@ async function doloresRespond(input) {
     return;
   }
 
-  // 3. KB query — always primary
+  // ── 4. KB query — primary knowledge source ───────────────────
   const kb = queryKnowledgeBase(input);
 
   if (kb.special) {
@@ -526,63 +917,64 @@ async function doloresRespond(input) {
     return;
   }
 
-  // 4. AI fallback (only when KB has no match)
-  let aiText = null;
-  try {
-    const chat = recentChats.find(c => c.id === currentChatId);
-    const history = (chat?.messages||[]).slice(-10).map(m=>({
-      role: m.sender==="user"?"user":"assistant", content:m.text
-    }));
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method:"POST",
-      headers:{
-        "Content-Type":"application/json",
-        "Authorization":"Bearer "+OPENROUTER_KEY,
-        "HTTP-Referer":"https://aidolores.github.io",
-        "X-Title":"Dolores"
-      },
-      body:JSON.stringify({
-        model:"openrouter/free",
-        messages:[
-          {role:"system", content:"You are Dolores, the Nerevions AI assistant. Be helpful, friendly, and concise. Wrap all code in triple backticks with the language name."},
-          ...history,
-          {role:"user", content:input}
-        ],
-        max_tokens:1500
-      })
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const content = data.choices?.[0]?.message?.content?.trim();
-      if (content) {
-        aiText = content;
-        if (localStorage.getItem("doloresOffline")==="1") {
-          localStorage.removeItem("doloresOffline");
-          showModeToast("✦ Dolores is back!");
-        }
-      }
-    }
-  } catch(e) { /* silent */ }
-
+  // ── 5. Optional AI — only if user has added a key in Settings ────
   typingDiv.remove();
+  const savedKey = localStorage.getItem("doloresApiKey");
+  if (savedKey) {
+    let aiText = null;
+    // show new typing while waiting on AI
+    const aiTyping = addChatMessage("dolores", "", true);
+    try {
+      const chat = recentChats.find(c => c.id === currentChatId);
+      const history = (chat?.messages||[]).slice(-10).map(m=>({
+        role: m.sender==="user"?"user":"assistant", content:m.text
+      }));
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json",
+          "Authorization":"Bearer "+savedKey,
+          "HTTP-Referer":"https://aidolores.github.io",
+          "X-Title":"Dolores"
+        },
+        body:JSON.stringify({
+          model:"openrouter/auto",
+          messages:[
+            {role:"system", content:"You are Dolores, the Nerevions AI assistant. Be helpful, friendly, and concise. When solving math show your steps. Wrap all code in triple backticks with the language name."},
+            ...history,
+            {role:"user", content:input}
+          ],
+          max_tokens:1500
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const content = data.choices?.[0]?.message?.content?.trim();
+        if (content) aiText = content;
+      }
+    } catch(e) { /* silent */ }
 
-  if (aiText) {
-    const codeMatch = aiText.match(/```(\w+)?\n?([\s\S]*?)```/);
-    if (codeMatch) {
-      const lang = codeMatch[1]||"txt", code = codeMatch[2].trim();
-      const before = aiText.slice(0, aiText.indexOf("```")).trim();
-      const after = aiText.slice(aiText.lastIndexOf("```")+3).trim();
-      const display = (before||"Here's the code:")+(after?"\n\n"+after:"");
-      const extMap = {javascript:"js",js:"js",python:"py",html:"html",css:"css",java:"java",cpp:"cpp",typescript:"ts",ts:"ts",bash:"sh",shell:"sh",go:"go",rust:"rs",sql:"sql",c:"c",jsx:"jsx"};
-      const ext = extMap[lang.toLowerCase()]||"txt";
-      renderTypingResponse({ text:display, file:{name:"dolores_code."+ext, content:code} });
-    } else {
-      renderTypingResponse({ text:aiText });
+    aiTyping.remove();
+
+    if (aiText) {
+      const codeMatch = aiText.match(/```(\w+)?\n?([\s\S]*?)```/);
+      if (codeMatch) {
+        const lang = codeMatch[1]||"txt", code = codeMatch[2].trim();
+        const before = aiText.slice(0, aiText.indexOf("```")).trim();
+        const after = aiText.slice(aiText.lastIndexOf("```")+3).trim();
+        const display = (before||"Here's the code:")+(after?"\n\n"+after:"");
+        const extMap = {javascript:"js",js:"js",python:"py",html:"html",css:"css",java:"java",cpp:"cpp",typescript:"ts",ts:"ts",bash:"sh",shell:"sh",go:"go",rust:"rs",sql:"sql",c:"c",jsx:"jsx"};
+        const ext = extMap[lang.toLowerCase()]||"txt";
+        renderTypingResponse({ text:display, file:{name:"dolores_code."+ext, content:code} });
+      } else {
+        renderTypingResponse({ text:aiText });
+      }
+      return;
     }
-  } else {
-    if (localStorage.getItem("doloresOffline")!=="1") localStorage.setItem("doloresOffline","1");
-    renderTypingResponse({ text:"I don't have information on that yet. Try asking about coding, science, math, history — or say 'draw a...' to generate an image!" });
   }
+
+  // ── No key or AI failed — honest KB-only response ─────────────
+  renderTypingResponse({ text:"I don't have that in my knowledge base yet! Try asking about coding, math, science, history, writing — or say 'draw a...' to make an image.\n\nTip: add an OpenRouter API key in Settings ⚙ for unlimited AI answers!" });
 }
 
 // ── Typing Response ───────────────────────────────────────────────
@@ -607,7 +999,13 @@ function renderTypingResponse(result) {
 function afterDoloresResponse(result, msgDiv) {
   if (result.file) renderFileCard(result.file);
   saveMessage("dolores", result.text, result.file||null);
-  if (document.getElementById("voiceToggle").checked) speak(result.text);
+  // Voice assistant mode uses its own toggle (on by default)
+  // Chat mode uses voiceToggle (off by default)
+  const shouldSpeak = voiceAssistantMode
+    ? document.getElementById("voiceAssistantSpeakToggle").checked
+    : document.getElementById("voiceToggle").checked;
+  if (shouldSpeak) speak(result.text);
+  voiceAssistantMode = false; // reset after each response
 }
 
 // ── File Cards ────────────────────────────────────────────────────
@@ -715,7 +1113,7 @@ function startWakeWordListener() {
       const t=e.results[i][0].transcript.toLowerCase().trim();
       if (t.includes("dolores")) {
         const after=t.replace(/.*dolores\s*/i,"").trim(); showOrb();
-        if (after.length>2) { setTimeout(()=>{ hideOrb(); if(!inChat)startNewChat(after); else sendChatMessage(after); },800); }
+        if (after.length>2) { setTimeout(()=>{ hideOrb(); voiceAssistantMode=true; if(!inChat)startNewChat(after); else sendChatMessage(after); },800); }
         else listenForCommand();
         break;
       }
@@ -733,15 +1131,60 @@ function listenForCommand() {
   document.getElementById("orbStatus").innerText="Say your question...";
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   const cmdRec=new SR(); cmdRec.lang="en-US"; cmdRec.interimResults=false;
-  cmdRec.onresult=e=>{ const cmd=e.results[0][0].transcript.trim(); hideOrb(); if(cmd.length>1){ if(!inChat)startNewChat(cmd); else sendChatMessage(cmd); } };
+  cmdRec.onresult=e=>{ const cmd=e.results[0][0].transcript.trim(); hideOrb(); if(cmd.length>1){ voiceAssistantMode=true; if(!inChat)startNewChat(cmd); else sendChatMessage(cmd); } };
   cmdRec.onerror=()=>hideOrb();
   cmdRec.onend=()=>{ if(orbVisible)hideOrb(); };
   try{cmdRec.start();}catch(e){hideOrb();}
 }
 
 // ── Settings ──────────────────────────────────────────────────────
-function openSettings() { document.getElementById("settingsOverlay").style.display="block"; }
-function closeSettings() { document.getElementById("settingsOverlay").style.display="none"; }
+function openSettings() {
+  document.getElementById("settingsOverlay").style.display = "block";
+  // Load saved API key into input
+  const saved = localStorage.getItem("doloresApiKey") || "";
+  const input = document.getElementById("apiKeyInput");
+  if (input) input.value = saved;
+  updateApiKeyStatus(saved);
+}
+
+function closeSettings() { document.getElementById("settingsOverlay").style.display = "none"; }
+
+function saveApiKeyLive() {
+  const val = document.getElementById("apiKeyInput").value.trim();
+  localStorage.setItem("doloresApiKey", val);
+  updateApiKeyStatus(val);
+}
+
+function clearApiKey() {
+  localStorage.removeItem("doloresApiKey");
+  document.getElementById("apiKeyInput").value = "";
+  updateApiKeyStatus("");
+}
+
+function updateApiKeyStatus(key) {
+  const el = document.getElementById("apiKeyStatus");
+  if (!el) return;
+  if (!key) {
+    el.style.color = "#9977cc";
+    el.innerText = "No key set — Dolores uses her built-in knowledge base only.";
+  } else if (key.startsWith("sk-or-")) {
+    el.style.color = "#a0f0a0";
+    el.innerText = "✓ OpenRouter key saved — AI fallback enabled!";
+  } else {
+    el.style.color = "#ffaa44";
+    el.innerText = "⚠ Key format looks unusual — make sure it starts with sk-or-";
+  }
+}
+
+function copySystemPrompt() {
+  const box = document.getElementById("systemPromptBox");
+  if (!box) return;
+  navigator.clipboard.writeText(box.innerText).then(() => {
+    const el = document.getElementById("promptCopied");
+    if (el) { el.style.display = "block"; setTimeout(() => el.style.display = "none", 2000); }
+  });
+}
+
 function deleteAllData() {
   localStorage.removeItem("recentChats"); recentChats=[]; inChat=false; currentChatId=null;
   document.getElementById("chatOverlay").style.display="none";

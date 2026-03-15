@@ -558,6 +558,21 @@ function isImageRequest(txt) {
   return false;
 }
 
+// ── Image Request Queue — prevents "queue full" on Pollinations ───
+const imgQueue = { running: false, tasks: [] };
+function queueImage(fn) {
+  imgQueue.tasks.push(fn);
+  if (!imgQueue.running) processImageQueue();
+}
+async function processImageQueue() {
+  if (imgQueue.tasks.length === 0) { imgQueue.running = false; return; }
+  imgQueue.running = true;
+  const task = imgQueue.tasks.shift();
+  await task();
+  // Wait 1.5s between requests so Pollinations queue clears
+  setTimeout(processImageQueue, 1500);
+}
+
 function renderImageResponse(prompt) {
   const container = document.getElementById("chatContent");
 
@@ -568,11 +583,9 @@ function renderImageResponse(prompt) {
     .replace(/\b(can you|please|could you|would you)\b/gi, "")
     .replace(/\s{2,}/g, " ").trim() || prompt;
 
-  // Build URLs — primary and fallback model
-  const seed = Date.now();
   const encoded = encodeURIComponent(clean);
-  const urlPrimary  = `https://image.pollinations.ai/prompt/${encoded}?width=512&height=512&nologo=true&seed=${seed}`;
-  const urlFallback = `https://image.pollinations.ai/prompt/${encoded}?width=512&height=512&nologo=true&seed=${seed+1}&model=flux`;
+  // Multiple models to try in order
+  const models = ["flux", "flux-realism", "turbo"];
 
   const label = document.createElement("div");
   label.className = "doloresMsg";
@@ -580,65 +593,88 @@ function renderImageResponse(prompt) {
   container.appendChild(label);
 
   const imgWrap = document.createElement("div"); imgWrap.className = "imgWrap";
-
   const loading = document.createElement("div");
   loading.className = "imgLoading";
-  loading.innerText = "⏳ Creating your image...";
+  loading.innerText = "⏳ Queuing image request...";
   imgWrap.appendChild(loading);
-
-  // Always show the open link immediately — user can tap it even before load
-  const openLink = document.createElement("a");
-  openLink.href = urlPrimary; openLink.target = "_blank";
-  openLink.style.cssText = "display:block;padding:8px 16px;font-size:12px;color:#d38cff;text-decoration:none;";
-  openLink.innerText = "↗ Open image in new tab";
-  imgWrap.appendChild(openLink);
-
   container.appendChild(imgWrap);
-
-  let attempts = 0;
-  const urls = [urlPrimary, urlFallback];
-
-  function tryLoad() {
-    const img = document.createElement("img");
-    img.style.cssText = "width:100%;max-width:512px;display:none;border-radius:0 0 12px 12px;";
-
-    img.onload = () => {
-      loading.remove();
-      openLink.remove();
-      img.style.display = "block";
-      // Show save button after successful load
-      const saveBtn = document.createElement("a");
-      saveBtn.href = urls[attempts]; saveBtn.target = "_blank"; saveBtn.className = "imgSaveBtn";
-      saveBtn.innerText = "↓ Open / Save Image";
-      container.appendChild(saveBtn);
-      container.scrollTop = container.scrollHeight;
-    };
-
-    img.onerror = () => {
-      attempts++;
-      if (attempts < urls.length) {
-        // Try fallback model
-        loading.innerText = "⏳ Retrying with alternate model...";
-        imgWrap.removeChild(img);
-        tryLoad();
-      } else {
-        // Both failed — show helpful message with direct links
-        loading.innerHTML =
-          `<span style="color:#ffaa44;">⚠ Couldn't load inline — Pollinations loaded it but your browser blocked it.</span><br>` +
-          `<a href="${urlPrimary}" target="_blank" style="color:#d38cff;display:block;margin-top:6px;">↗ View image (attempt 1)</a>` +
-          `<a href="${urlFallback}" target="_blank" style="color:#d38cff;display:block;margin-top:4px;">↗ View image (attempt 2 - flux)</a>`;
-        openLink.remove();
-        container.scrollTop = container.scrollHeight;
-      }
-    };
-
-    img.src = urls[attempts];
-    imgWrap.appendChild(img);
-  }
-
-  tryLoad();
   container.scrollTop = container.scrollHeight;
   saveMessage("dolores", "Generated image: " + clean);
+
+  queueImage(async () => {
+    loading.innerText = "⏳ Generating image...";
+    let lastUrl = "";
+
+    for (let m = 0; m < models.length; m++) {
+      const seed = Date.now() + m;
+      const url = `https://image.pollinations.ai/prompt/${encoded}?width=512&height=512&nologo=true&seed=${seed}&model=${models[m]}`;
+      lastUrl = url;
+
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) {
+          // Wait before retry: 3s, 6s
+          const wait = attempt * 3000;
+          loading.innerText = `⏳ Rate limited — retrying in ${wait/1000}s... (model: ${models[m]})`;
+          await new Promise(r => setTimeout(r, wait));
+        }
+
+        try {
+          // Fetch the URL first to check if it's an image or a JSON error
+          const res = await fetch(url, { mode: "cors" });
+          const contentType = res.headers.get("content-type") || "";
+
+          if (contentType.startsWith("image/")) {
+            // Real image — convert to blob URL to avoid browser CORS blocking
+            const blob = await res.blob();
+            const blobUrl = URL.createObjectURL(blob);
+
+            loading.remove();
+            const img = document.createElement("img");
+            img.style.cssText = "width:100%;max-width:512px;display:block;border-radius:12px;";
+            img.src = blobUrl;
+            imgWrap.appendChild(img);
+
+            const saveBtn = document.createElement("a");
+            saveBtn.href = url; saveBtn.target = "_blank"; saveBtn.className = "imgSaveBtn";
+            saveBtn.innerText = "↓ Open / Save Image";
+            container.appendChild(saveBtn);
+            container.scrollTop = container.scrollHeight;
+            return; // success — exit all loops
+          }
+
+          // Got JSON/text — check if it's rate limit
+          const text = await res.text();
+          let isRateLimit = false;
+          try {
+            const json = JSON.parse(text);
+            isRateLimit = json.error === "Too Many Requests" || (json.message||"").includes("Queue full");
+            if (!isRateLimit) {
+              // Different error — skip to next model
+              break;
+            }
+          } catch(e) { break; }
+
+          // Rate limited — will retry via loop
+        } catch(e) {
+          // Network error — try next model
+          break;
+        }
+      }
+      // All retries for this model exhausted, try next model
+    }
+
+    // All models failed — show links so user can try manually
+    imgWrap.innerHTML =
+      `<div class="imgLoading" style="line-height:2;">` +
+      `<span style="color:#ffaa44;">⚠ Pollinations is busy right now.</span><br>` +
+      `<span style="font-size:11px;color:#9977cc;">Click a link to open the image directly:</span><br>` +
+      models.map((m, i) =>
+        `<a href="https://image.pollinations.ai/prompt/${encoded}?width=512&height=512&nologo=true&model=${m}" ` +
+        `target="_blank" style="color:#d38cff;display:block;">↗ Try with model: ${m}</a>`
+      ).join("") +
+      `</div>`;
+    container.scrollTop = container.scrollHeight;
+  });
 }
 
 // ── Code Generator ────────────────────────────────────────────────
@@ -682,7 +718,7 @@ function generateCode(input) {
   </div>
   <ul id="list" style="list-style:none;padding:0;"></ul>
 </div>
-<script>
+\x3cscript>
 function add(){
   const inp=document.getElementById('inp');
   if(!inp.value.trim()) return;
@@ -730,7 +766,7 @@ function add(){
     <button class="span2" onclick="num(0)">0</button><button onclick="dot()">.</button><button class="eq" onclick="eq()">=</button>
   </div>
 </div>
-<script>
+\x3cscript>
 let cur='0',prev='',operator='',newNum=true;
 const d=()=>document.getElementById('display');
 function update(v){d().innerText=v;}
@@ -767,7 +803,7 @@ function pct(){cur=String(parseFloat(cur)/100);update(cur);}
   <button onclick="toggle()" id="btn">Start</button>
   <button onclick="reset()" id="reset">Reset</button>
 </div>
-<script>
+\x3cscript>
 let ms=0,running=false,iv=null;
 function pad(n){return String(n).padStart(2,'0');}
 function update(){const h=Math.floor(ms/3600000),m=Math.floor(ms%3600000/60000),s=Math.floor(ms%60000/1000);document.getElementById('time').innerText=pad(h)+':'+pad(m)+':'+pad(s);}
@@ -795,7 +831,7 @@ function reset(){clearInterval(iv);running=false;ms=0;update();document.getEleme
   <div id="time"></div>
   <div id="date"></div>
 </div>
-<script>
+\x3cscript>
 function tick(){
   const now=new Date();
   const h=String(now.getHours()).padStart(2,'0');
@@ -835,7 +871,7 @@ tick(); setInterval(tick,1000);
   <div id="questions"></div>
   <div id="score"></div>
 </div>
-<script>
+\x3cscript>
 const qs=[
   {q:"What does HTML stand for?",opts:["HyperText Markup Language","High Tech Modern Language","HyperText Modern Links","None"],ans:0},
   {q:"Which planet is closest to the Sun?",opts:["Venus","Earth","Mercury","Mars"],ans:2},

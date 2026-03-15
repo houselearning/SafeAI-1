@@ -561,15 +561,18 @@ function isImageRequest(txt) {
 function renderImageResponse(prompt) {
   const container = document.getElementById("chatContent");
 
-  // Clean prompt — strip leading command words, keep the actual subject
+  // Strip command words, keep the actual subject
   const clean = prompt
-    .replace(/^(draw|paint|sketch|generate|render|imagine|illustrate|create|make|show me|give me)\s+(me\s+)?(a\s+|an\s+|the\s+)?/i, "")
+    .replace(/^(draw|paint|sketch|generate|render|imagine|illustrate|create|make|show me|give me|design)\s+(me\s+)?(a\s+|an\s+|the\s+|some\s+)?/i, "")
     .replace(/\b(image of|picture of|photo of|drawing of|art of|illustration of|portrait of|painting of|image|picture)\b/gi, "")
     .replace(/\b(can you|please|could you|would you)\b/gi, "")
-    .replace(/\s{2,}/g, " ")
-    .trim() || prompt;
+    .replace(/\s{2,}/g, " ").trim() || prompt;
 
-  const src = "https://image.pollinations.ai/prompt/" + encodeURIComponent(clean) + "?width=512&height=512&nologo=true&seed=" + Date.now();
+  // Build URLs — primary and fallback model
+  const seed = Date.now();
+  const encoded = encodeURIComponent(clean);
+  const urlPrimary  = `https://image.pollinations.ai/prompt/${encoded}?width=512&height=512&nologo=true&seed=${seed}`;
+  const urlFallback = `https://image.pollinations.ai/prompt/${encoded}?width=512&height=512&nologo=true&seed=${seed+1}&model=flux`;
 
   const label = document.createElement("div");
   label.className = "doloresMsg";
@@ -577,33 +580,63 @@ function renderImageResponse(prompt) {
   container.appendChild(label);
 
   const imgWrap = document.createElement("div"); imgWrap.className = "imgWrap";
-  const loading = document.createElement("div"); loading.className = "imgLoading"; loading.innerText = "⏳ Creating your image...";
+
+  const loading = document.createElement("div");
+  loading.className = "imgLoading";
+  loading.innerText = "⏳ Creating your image...";
   imgWrap.appendChild(loading);
 
-  const img = document.createElement("img");
-  img.style.cssText = "width:100%;max-width:512px;display:none;border-radius:0 0 12px 12px;";
-  img.onload = () => {
-    loading.remove();
-    img.style.display = "block";
-    saveBtn.style.display = "inline-block";
-    container.scrollTop = container.scrollHeight;
-  };
-  img.onerror = () => {
-    loading.innerHTML = "❌ Image failed — Pollinations may be busy. <a href='" + src + "' target='_blank' style='color:#d38cff;'>Try opening directly</a>";
-  };
-  img.src = src;
-  imgWrap.appendChild(img);
+  // Always show the open link immediately — user can tap it even before load
+  const openLink = document.createElement("a");
+  openLink.href = urlPrimary; openLink.target = "_blank";
+  openLink.style.cssText = "display:block;padding:8px 16px;font-size:12px;color:#d38cff;text-decoration:none;";
+  openLink.innerText = "↗ Open image in new tab";
+  imgWrap.appendChild(openLink);
+
   container.appendChild(imgWrap);
 
-  const saveBtn = document.createElement("a");
-  saveBtn.href = src; saveBtn.target = "_blank"; saveBtn.className = "imgSaveBtn";
-  saveBtn.innerText = "↓ Open / Save Image";
-  saveBtn.style.display = "none"; // shown after load
-  container.appendChild(saveBtn);
+  let attempts = 0;
+  const urls = [urlPrimary, urlFallback];
 
-  // Also show save immediately in case onload doesn't fire (some browsers/CORS)
-  setTimeout(() => { saveBtn.style.display = "inline-block"; }, 800);
+  function tryLoad() {
+    const img = document.createElement("img");
+    img.style.cssText = "width:100%;max-width:512px;display:none;border-radius:0 0 12px 12px;";
 
+    img.onload = () => {
+      loading.remove();
+      openLink.remove();
+      img.style.display = "block";
+      // Show save button after successful load
+      const saveBtn = document.createElement("a");
+      saveBtn.href = urls[attempts]; saveBtn.target = "_blank"; saveBtn.className = "imgSaveBtn";
+      saveBtn.innerText = "↓ Open / Save Image";
+      container.appendChild(saveBtn);
+      container.scrollTop = container.scrollHeight;
+    };
+
+    img.onerror = () => {
+      attempts++;
+      if (attempts < urls.length) {
+        // Try fallback model
+        loading.innerText = "⏳ Retrying with alternate model...";
+        imgWrap.removeChild(img);
+        tryLoad();
+      } else {
+        // Both failed — show helpful message with direct links
+        loading.innerHTML =
+          `<span style="color:#ffaa44;">⚠ Couldn't load inline — Pollinations loaded it but your browser blocked it.</span><br>` +
+          `<a href="${urlPrimary}" target="_blank" style="color:#d38cff;display:block;margin-top:6px;">↗ View image (attempt 1)</a>` +
+          `<a href="${urlFallback}" target="_blank" style="color:#d38cff;display:block;margin-top:4px;">↗ View image (attempt 2 - flux)</a>`;
+        openLink.remove();
+        container.scrollTop = container.scrollHeight;
+      }
+    };
+
+    img.src = urls[attempts];
+    imgWrap.appendChild(img);
+  }
+
+  tryLoad();
   container.scrollTop = container.scrollHeight;
   saveMessage("dolores", "Generated image: " + clean);
 }

@@ -225,28 +225,113 @@ body,html{margin:0;padding:0;font-family:Arial,sans-serif;background:#1b0f33;col
 
     <hr class="settingsDivider">
     <p style="margin:0 0 6px;font-size:13px;color:#d38cff;font-weight:600;letter-spacing:0.05em;">🧠 DOLORES KNOWLEDGE API</p>
-    <p style="margin:0 0 10px;font-size:12px;color:#9977cc;line-height:1.5;">Let your friends or other AIs use Dolores's knowledge base. Share this endpoint — anyone can query it with a simple fetch.</p>
-    <div style="background:#2b1a54;border:1px solid rgba(122,44,255,0.3);border-radius:8px;padding:10px 12px;font-family:monospace;font-size:11px;color:#d38cff;word-break:break-all;user-select:all;cursor:text;">
-      https://aidolores.github.io/smart.json
+    <p style="margin:0 0 10px;font-size:12px;color:#9977cc;line-height:1.5;">Share Dolores's knowledge base with your friends or plug it into any AI. Use the ready-made JS file below — it wires up everything automatically.</p>
+
+    <p style="margin:0 0 4px;font-size:12px;color:#9977cc;">📡 Live endpoint:</p>
+    <div style="background:#2b1a54;border:1px solid rgba(122,44,255,0.3);border-radius:8px;padding:9px 12px;font-family:monospace;font-size:11px;color:#d38cff;word-break:break-all;user-select:all;margin-bottom:10px;">https://aidolores.github.io/smart.json</div>
+
+    <p style="margin:0 0 6px;font-size:12px;color:#9977cc;">📦 Download <b style="color:#d38cff;">dolores-integration.js</b> — drop it in any project:</p>
+    <div style="background:#0d0a1a;border:1px solid rgba(122,44,255,0.2);border-radius:8px;padding:10px 12px;font-family:monospace;font-size:10.5px;color:#a0f0a0;white-space:pre;overflow-x:auto;max-height:160px;overflow-y:auto;">// dolores-integration.js
+// Drop into any project to use Dolores's knowledge base + image gen
+// All files from aidolores.github.io are loaded automatically.
+
+const Dolores = {
+  kb: {},           // flat knowledge base (smart.json)
+  functions: {},    // code patterns (functions.json)
+  templates: {},    // project templates (templates.json)
+  ready: false,
+
+  async init() {
+    const BASE = 'https://aidolores.github.io';
+    const [smart, funcs, tpls] = await Promise.all([
+      fetch(BASE + '/smart.json').then(r => r.json()),
+      fetch(BASE + '/functions.json').then(r => r.json()),
+      fetch(BASE + '/templates.json').then(r => r.json()),
+    ]);
+    // Flatten smart.json categories into one lookup
+    if (smart.knowledge)
+      Object.values(smart.knowledge).forEach(cat =>
+        Object.assign(this.kb, cat));
+    if (smart.debug) Object.assign(this.kb, smart.debug);
+    this.functions = funcs;
+    this.templates = tpls;
+    this.ready = true;
+    console.log('[Dolores] Loaded', Object.keys(this.kb).length,
+      'KB entries,', Object.keys(this.templates.projects||{}).length,
+      'templates');
+    return this;
+  },
+
+  // Query the knowledge base
+  query(input) {
+    const lower = input.toLowerCase();
+    const words = lower.split(/\W+/).filter(w => w.length > 2);
+    let best = 0, result = null;
+    for (const [key, val] of Object.entries(this.kb)) {
+      let score = 0;
+      if (lower.includes(key)) score += 10;
+      key.split(' ').forEach(kw => { if (lower.includes(kw)) score += 3; });
+      words.forEach(w => { if (key.includes(w)) score += 2; });
+      words.forEach(w => { if (val.toLowerCase().includes(w)) score += 1; });
+      if (score > best) { best = score; result = val; }
+    }
+    return best >= 2 ? result : null;
+  },
+
+  // Generate an image URL via Pollinations.ai (free, no key)
+  imageURL(prompt, w = 512, h = 512) {
+    return 'https://image.pollinations.ai/prompt/' +
+      encodeURIComponent(prompt) +
+      '?width=' + w + '&height=' + h + '&nologo=true';
+  },
+
+  // Get a project template by name
+  template(name) {
+    return this.templates?.projects?.[name] || null;
+  },
+
+  // Respond to any message (KB first, then optional OpenRouter AI)
+  async respond(input, openRouterKey = null) {
+    const kbAnswer = this.query(input);
+    if (kbAnswer) return { source: 'kb', text: kbAnswer };
+
+    if (openRouterKey) {
+      const res = await fetch(
+        'https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + openRouterKey,
+        },
+        body: JSON.stringify({
+          model: 'openrouter/auto',
+          messages: [{ role: 'user', content: input }],
+          max_tokens: 1000,
+        }),
+      });
+      const data = await res.json();
+      const text = data.choices?.[0]?.message?.content?.trim();
+      if (text) return { source: 'ai', text };
+    }
+    return { source: 'none', text: null };
+  },
+};
+
+// Auto-init when script loads
+Dolores.init();</div>
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+      <button class="settingsBtn" style="margin:0;padding:6px 14px;font-size:12px;" onclick="downloadIntegrationJS()">⬇ Download dolores-integration.js</button>
+      <button class="settingsBtn" style="margin:0;padding:6px 14px;font-size:12px;" onclick="copySystemPrompt()">⎘ Copy System Prompt</button>
     </div>
-    <p style="margin:8px 0 6px;font-size:12px;color:#9977cc;">Usage example (JavaScript):</p>
-    <div style="background:#0d0a1a;border:1px solid rgba(122,44,255,0.2);border-radius:8px;padding:10px 12px;font-family:monospace;font-size:11px;color:#a0f0a0;white-space:pre;overflow-x:auto;">fetch('https://aidolores.github.io/smart.json')
-  .then(r => r.json())
-  .then(db => {
-    // db.knowledge contains all categories
-    // db.debug contains error fixes
-    const kb = {};
-    Object.values(db.knowledge).forEach(cat =>
-      Object.assign(kb, cat));
-    console.log('Loaded', Object.keys(kb).length, 'entries');
-  });</div>
-    <p style="margin:8px 0 6px;font-size:12px;color:#9977cc;">System prompt snippet for your AI:</p>
-    <div id="systemPromptBox" style="background:#0d0a1a;border:1px solid rgba(122,44,255,0.2);border-radius:8px;padding:10px 12px;font-family:monospace;font-size:11px;color:#c0a0ff;white-space:pre-wrap;word-break:break-word;max-height:100px;overflow-y:auto;cursor:pointer;" onclick="copySystemPrompt()" title="Click to copy">You have access to the Dolores knowledge base.
-Fetch: https://aidolores.github.io/smart.json
-Use db.knowledge and db.debug to answer questions.
-Always check the KB before generating an answer.</div>
-    <button class="settingsBtn" style="margin-top:8px;padding:6px 14px;font-size:12px;" onclick="copySystemPrompt()">⎘ Copy System Prompt</button>
     <div id="promptCopied" style="font-size:11px;color:#a0f0a0;margin-top:4px;display:none;">Copied! ✓</div>
+
+    <p style="margin:10px 0 6px;font-size:12px;color:#9977cc;">System prompt to give your AI access to the KB:</p>
+    <div id="systemPromptBox" style="background:#0d0a1a;border:1px solid rgba(122,44,255,0.2);border-radius:8px;padding:10px 12px;font-family:monospace;font-size:11px;color:#c0a0ff;white-space:pre-wrap;word-break:break-word;cursor:pointer;" onclick="copySystemPrompt()" title="Click to copy">You have access to the Dolores knowledge base.
+Load it with: await Dolores.init(); (from aidolores.github.io)
+Or fetch directly: https://aidolores.github.io/smart.json
+The JSON has .knowledge (categorised) and .debug (error fixes).
+Flatten with: Object.values(db.knowledge).forEach(c => Object.assign(kb, c))
+Always check the KB before generating an answer from scratch.</div>
 
     <hr class="settingsDivider">
     <p style="margin:0 0 8px;font-size:13px;color:#9977cc;font-weight:600;letter-spacing:0.05em;">FILES IN THIS APP</p>
@@ -460,50 +545,707 @@ function renderWithFood(data) {
 
 // ── Image Generation ──────────────────────────────────────────────
 function isImageRequest(txt) {
-  const t = txt.toLowerCase();
-  return /\b(draw|paint|generate|create|make|show|render|imagine)\b/.test(t) &&
-    /\b(image|picture|photo|art|illustration|drawing|painting|portrait|landscape|scene|logo|icon|wallpaper|avatar|poster|banner)\b/.test(t);
+  const t = txt.toLowerCase().trim();
+  // NEVER an image if it's a code/programming request
+  if (/\b(code|function|script|program|app|website|api|html|css|javascript|js|python|java|c\+\+|sql|component|algorithm|loop|array|class|method|database|server|calculator|game|timer|todo|form|login|quiz|generator|converter|navbar|button|modal)\b/.test(t)) return false;
+  // Pure draw verbs at start — always image
+  if (/^(draw|paint|sketch|render|imagine|illustrate)\b/.test(t)) return true;
+  // "generate/create/make" only image if an image noun follows
+  if (/\b(generate|create|make|design|show)\b/.test(t) &&
+      /\b(image|picture|photo|art|illustration|drawing|painting|portrait|landscape|scene|logo|icon|wallpaper|avatar|poster|banner|artwork|pic|meme|cartoon|anime|realistic|3d|render)\b/.test(t)) return true;
+  // "X of X" image phrases
+  if (/\b(image of|picture of|photo of|drawing of|art of|illustration of|portrait of|painting of)\b/.test(t)) return true;
+  return false;
 }
 
 function renderImageResponse(prompt) {
   const container = document.getElementById("chatContent");
+
+  // Clean prompt — strip leading command words, keep the actual subject
+  const clean = prompt
+    .replace(/^(draw|paint|sketch|generate|render|imagine|illustrate|create|make|show me|give me)\s+(me\s+)?(a\s+|an\s+|the\s+)?/i, "")
+    .replace(/\b(image of|picture of|photo of|drawing of|art of|illustration of|portrait of|painting of|image|picture)\b/gi, "")
+    .replace(/\b(can you|please|could you|would you)\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim() || prompt;
+
+  const src = "https://image.pollinations.ai/prompt/" + encodeURIComponent(clean) + "?width=512&height=512&nologo=true&seed=" + Date.now();
+
   const label = document.createElement("div");
-  label.className = "doloresMsg"; label.innerText = "Here's your image! ✨";
+  label.className = "doloresMsg";
+  label.innerText = `Generating: "${clean}" ✨`;
   container.appendChild(label);
 
   const imgWrap = document.createElement("div"); imgWrap.className = "imgWrap";
-  const loading = document.createElement("div"); loading.className = "imgLoading"; loading.innerText = "Generating image...";
+  const loading = document.createElement("div"); loading.className = "imgLoading"; loading.innerText = "⏳ Creating your image...";
   imgWrap.appendChild(loading);
 
-  const clean = prompt.replace(/\b(draw|generate|create|make|show me|paint|design|render|imagine|a picture of|an image of|a photo of|can you|please)\b/gi,"").trim();
-  const src = "https://image.pollinations.ai/prompt/"+encodeURIComponent(clean||prompt)+"?width=512&height=512&nologo=true&seed="+Date.now();
-
   const img = document.createElement("img");
-  img.onload = () => { loading.remove(); img.style.display="block"; container.scrollTop=container.scrollHeight; };
-  img.onerror = () => { loading.innerText = "Image generation failed. Try rephrasing!"; };
+  img.style.cssText = "width:100%;max-width:512px;display:none;border-radius:0 0 12px 12px;";
+  img.onload = () => {
+    loading.remove();
+    img.style.display = "block";
+    saveBtn.style.display = "inline-block";
+    container.scrollTop = container.scrollHeight;
+  };
+  img.onerror = () => {
+    loading.innerHTML = "❌ Image failed — Pollinations may be busy. <a href='" + src + "' target='_blank' style='color:#d38cff;'>Try opening directly</a>";
+  };
   img.src = src;
   imgWrap.appendChild(img);
   container.appendChild(imgWrap);
 
   const saveBtn = document.createElement("a");
   saveBtn.href = src; saveBtn.target = "_blank"; saveBtn.className = "imgSaveBtn";
-  saveBtn.innerText = "↓ Save Image";
+  saveBtn.innerText = "↓ Open / Save Image";
+  saveBtn.style.display = "none"; // shown after load
   container.appendChild(saveBtn);
+
+  // Also show save immediately in case onload doesn't fire (some browsers/CORS)
+  setTimeout(() => { saveBtn.style.display = "inline-block"; }, 800);
+
   container.scrollTop = container.scrollHeight;
-  saveMessage("dolores", "Generated image: "+prompt);
+  saveMessage("dolores", "Generated image: " + clean);
 }
 
-// ── Template / Project builder ────────────────────────────────────
+// ── Code Generator ────────────────────────────────────────────────
+// Detects code requests and generates real code locally
+function isCodeRequest(txt) {
+  const t = txt.toLowerCase();
+  return /\b(write|create|make|build|generate|give me|show me|code)\b/.test(t) &&
+    /\b(function|class|script|program|app|component|code|snippet|example|html|css|javascript|js|python|java|c\+\+|sql|api|server|website|page|game|timer|calculator|todo|form|button|menu|navbar|card|modal|animation|counter|clock|converter|quiz)\b/.test(t);
+}
+
+function generateCode(input) {
+  const t = input.toLowerCase();
+
+  // ── HTML/CSS/JS snippets ──────────────────────────────────────
+  if (t.includes("todo") || t.includes("to-do") || t.includes("to do list")) {
+    return { lang:"html", name:"todo_app.html", code:`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Todo App</title>
+<style>
+  body{font-family:Arial,sans-serif;background:#1b0f33;color:white;display:flex;justify-content:center;padding:40px;}
+  .app{width:400px;}
+  h1{background:linear-gradient(135deg,#7a2cff,#d38cff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+  .input-row{display:flex;gap:8px;margin-bottom:16px;}
+  input{flex:1;background:#2b1a54;border:1px solid #7a2cff;color:white;padding:10px;border-radius:8px;font-size:15px;}
+  button{background:#7a2cff;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;}
+  li{background:#2b1a54;margin:6px 0;padding:10px 14px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;}
+  li.done span{text-decoration:line-through;opacity:0.5;}
+  li button{background:rgba(200,0,80,0.3);padding:4px 10px;font-size:12px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>✓ Todo</h1>
+  <div class="input-row">
+    <input id="inp" placeholder="Add a task..." onkeydown="if(event.key==='Enter')add()">
+    <button onclick="add()">Add</button>
+  </div>
+  <ul id="list" style="list-style:none;padding:0;"></ul>
+</div>
+<script>
+function add(){
+  const inp=document.getElementById('inp');
+  if(!inp.value.trim()) return;
+  const li=document.createElement('li');
+  const span=document.createElement('span');
+  span.innerText=inp.value.trim();
+  span.onclick=()=>li.classList.toggle('done');
+  const del=document.createElement('button');
+  del.innerText='✕'; del.onclick=()=>li.remove();
+  li.appendChild(span); li.appendChild(del);
+  document.getElementById('list').appendChild(li);
+  inp.value='';
+}
+<\/script>
+</body>
+</html>` };
+  }
+
+  if (t.includes("calculator") || t.includes("calc")) {
+    return { lang:"html", name:"calculator.html", code:`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Calculator</title>
+<style>
+  body{background:#1b0f33;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}
+  .calc{background:#2b1a54;border-radius:16px;padding:24px;width:280px;box-shadow:0 8px 40px rgba(122,44,255,0.4);}
+  #display{background:#1b0f33;color:#d38cff;font-size:28px;text-align:right;padding:12px 16px;border-radius:10px;margin-bottom:16px;min-height:52px;word-break:break-all;}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  button{background:#3b2a70;color:white;border:none;padding:16px;border-radius:10px;font-size:18px;cursor:pointer;transition:background 0.15s;}
+  button:hover{background:#4b3a80;}
+  .op{background:#7a2cff;} .op:hover{background:#9a4cff;}
+  .eq{background:linear-gradient(135deg,#7a2cff,#d38cff);color:white;} .eq:hover{opacity:0.9;}
+  .span2{grid-column:span 2;}
+</style>
+</head>
+<body>
+<div class="calc">
+  <div id="display">0</div>
+  <div class="grid">
+    <button onclick="clr()">C</button><button onclick="sign()">+/-</button><button onclick="pct()">%</button><button class="op" onclick="op('/')">÷</button>
+    <button onclick="num(7)">7</button><button onclick="num(8)">8</button><button onclick="num(9)">9</button><button class="op" onclick="op('*')">×</button>
+    <button onclick="num(4)">4</button><button onclick="num(5)">5</button><button onclick="num(6)">6</button><button class="op" onclick="op('-')">−</button>
+    <button onclick="num(1)">1</button><button onclick="num(2)">2</button><button onclick="num(3)">3</button><button class="op" onclick="op('+')">+</button>
+    <button class="span2" onclick="num(0)">0</button><button onclick="dot()">.</button><button class="eq" onclick="eq()">=</button>
+  </div>
+</div>
+<script>
+let cur='0',prev='',operator='',newNum=true;
+const d=()=>document.getElementById('display');
+function update(v){d().innerText=v;}
+function num(n){if(newNum){cur=String(n);newNum=false;}else{cur=cur==='0'?String(n):cur+n;}update(cur);}
+function dot(){if(newNum){cur='0.';newNum=false;}else if(!cur.includes('.'))cur+='.';update(cur);}
+function op(o){prev=cur;operator=o;newNum=true;}
+function eq(){if(!operator)return;const a=parseFloat(prev),b=parseFloat(cur);let r;switch(operator){case'+':r=a+b;break;case'-':r=a-b;break;case'*':r=a*b;break;case'/':r=b===0?'Error':a/b;break;}cur=String(Math.round(r*1e10)/1e10);operator='';newNum=true;update(cur);}
+function clr(){cur='0';prev='';operator='';newNum=true;update('0');}
+function sign(){cur=String(-parseFloat(cur));update(cur);}
+function pct(){cur=String(parseFloat(cur)/100);update(cur);}
+<\/script>
+</body>
+</html>` };
+  }
+
+  if (t.includes("timer") || t.includes("countdown") || t.includes("stopwatch")) {
+    return { lang:"html", name:"timer.html", code:`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Timer</title>
+<style>
+  body{background:#1b0f33;color:white;font-family:Arial,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0;gap:20px;}
+  #time{font-size:72px;font-weight:bold;background:linear-gradient(135deg,#7a2cff,#d38cff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:4px;}
+  .btns{display:flex;gap:12px;}
+  button{background:#7a2cff;color:white;border:none;padding:12px 28px;border-radius:10px;font-size:16px;cursor:pointer;}
+  button:hover{background:#9a4cff;}
+  #reset{background:#2b1a54;}
+</style>
+</head>
+<body>
+<div id="time">00:00:00</div>
+<div class="btns">
+  <button onclick="toggle()" id="btn">Start</button>
+  <button onclick="reset()" id="reset">Reset</button>
+</div>
+<script>
+let ms=0,running=false,iv=null;
+function pad(n){return String(n).padStart(2,'0');}
+function update(){const h=Math.floor(ms/3600000),m=Math.floor(ms%3600000/60000),s=Math.floor(ms%60000/1000);document.getElementById('time').innerText=pad(h)+':'+pad(m)+':'+pad(s);}
+function toggle(){running=!running;document.getElementById('btn').innerText=running?'Pause':'Resume';if(running)iv=setInterval(()=>{ms+=10;update();},10);else clearInterval(iv);}
+function reset(){clearInterval(iv);running=false;ms=0;update();document.getElementById('btn').innerText='Start';}
+<\/script>
+</body>
+</html>` };
+  }
+
+  if (t.includes("clock") || t.includes("analog clock") || t.includes("digital clock")) {
+    return { lang:"html", name:"clock.html", code:`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Clock</title>
+<style>
+  body{background:#1b0f33;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}
+  #time{font-size:80px;font-family:'SF Mono',monospace;font-weight:bold;background:linear-gradient(135deg,#7a2cff,#d38cff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:4px;}
+  #date{color:#9977cc;font-size:20px;text-align:center;margin-top:12px;font-family:Arial,sans-serif;}
+</style>
+</head>
+<body>
+<div style="text-align:center;">
+  <div id="time"></div>
+  <div id="date"></div>
+</div>
+<script>
+function tick(){
+  const now=new Date();
+  const h=String(now.getHours()).padStart(2,'0');
+  const m=String(now.getMinutes()).padStart(2,'0');
+  const s=String(now.getSeconds()).padStart(2,'0');
+  document.getElementById('time').innerText=h+':'+m+':'+s;
+  document.getElementById('date').innerText=now.toLocaleDateString(undefined,{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+}
+tick(); setInterval(tick,1000);
+<\/script>
+</body>
+</html>` };
+  }
+
+  if (t.includes("quiz") || t.includes("trivia")) {
+    return { lang:"html", name:"quiz.html", code:`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Quiz</title>
+<style>
+  body{background:#1b0f33;color:white;font-family:Arial,sans-serif;display:flex;justify-content:center;padding:40px;}
+  .quiz{max-width:500px;width:100%;}
+  h2{background:linear-gradient(135deg,#7a2cff,#d38cff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+  .q{background:#2b1a54;border-radius:12px;padding:20px;margin-bottom:16px;}
+  .q p{font-size:16px;margin:0 0 14px;}
+  .opt{display:block;background:#3b2a70;border:none;color:white;width:100%;padding:10px 14px;border-radius:8px;margin:6px 0;cursor:pointer;text-align:left;font-size:14px;}
+  .opt:hover{background:#4b3a80;}
+  .opt.correct{background:#2d6a2d !important;}
+  .opt.wrong{background:#6a2d2d !important;}
+  #score{font-size:20px;color:#d38cff;margin-top:16px;}
+</style>
+</head>
+<body>
+<div class="quiz">
+  <h2>Quick Quiz</h2>
+  <div id="questions"></div>
+  <div id="score"></div>
+</div>
+<script>
+const qs=[
+  {q:"What does HTML stand for?",opts:["HyperText Markup Language","High Tech Modern Language","HyperText Modern Links","None"],ans:0},
+  {q:"Which planet is closest to the Sun?",opts:["Venus","Earth","Mercury","Mars"],ans:2},
+  {q:"What is 7 × 8?",opts:["54","56","58","64"],ans:1},
+  {q:"Who wrote Romeo and Juliet?",opts:["Dickens","Shakespeare","Hemingway","Austen"],ans:1},
+];
+let score=0,answered=0;
+const el=document.getElementById('questions');
+qs.forEach((q,qi)=>{
+  const div=document.createElement('div');div.className='q';
+  const p=document.createElement('p');p.innerText=(qi+1)+'. '+q.q;div.appendChild(p);
+  q.opts.forEach((opt,oi)=>{
+    const btn=document.createElement('button');btn.className='opt';btn.innerText=opt;
+    btn.onclick=function(){
+      if(this.disabled)return;
+      div.querySelectorAll('.opt').forEach(b=>b.disabled=true);
+      this.classList.add(oi===q.ans?'correct':'wrong');
+      if(oi===q.ans)score++;
+      answered++;
+      if(answered===qs.length)document.getElementById('score').innerText='Score: '+score+'/'+qs.length;
+    };
+    div.appendChild(btn);
+  });
+  el.appendChild(div);
+});
+<\/script>
+</body>
+</html>` };
+  }
+
+  if (t.includes("weather") || (t.includes("api") && t.includes("fetch"))) {
+    return { lang:"js", name:"fetch_example.js", code:`// Fetch API Example — get weather data
+async function getWeather(city) {
+  // Using Open-Meteo (free, no key needed)
+  // First geocode the city
+  const geo = await fetch(
+    \`https://geocoding-api.open-meteo.com/v1/search?name=\${encodeURIComponent(city)}&count=1\`
+  ).then(r => r.json());
+
+  if (!geo.results?.length) {
+    console.error('City not found:', city);
+    return null;
+  }
+
+  const { latitude, longitude, name, country } = geo.results[0];
+
+  // Get weather
+  const weather = await fetch(
+    \`https://api.open-meteo.com/v1/forecast?latitude=\${latitude}&longitude=\${longitude}&current_weather=true\`
+  ).then(r => r.json());
+
+  const temp = weather.current_weather.temperature;
+  const wind = weather.current_weather.windspeed;
+
+  console.log(\`\${name}, \${country}: \${temp}°C, wind \${wind} km/h\`);
+  return weather;
+}
+
+getWeather('New York');` };
+  }
+
+  if ((t.includes("python") || t.includes("py")) && (t.includes("class") || t.includes("oop"))) {
+    return { lang:"python", name:"classes_example.py", code:`# Python OOP Example
+
+class Animal:
+    def __init__(self, name, sound):
+        self.name = name
+        self.sound = sound
+
+    def speak(self):
+        return f"{self.name} says {self.sound}!"
+
+    def __repr__(self):
+        return f"Animal(name='{self.name}')"
+
+
+class Dog(Animal):
+    def __init__(self, name):
+        super().__init__(name, "Woof")
+        self.tricks = []
+
+    def learn(self, trick):
+        self.tricks.append(trick)
+        return f"{self.name} learned {trick}!"
+
+    def perform(self):
+        if not self.tricks:
+            return f"{self.name} doesn't know any tricks yet."
+        return f"{self.name} performs: " + ", ".join(self.tricks)
+
+
+class Cat(Animal):
+    def __init__(self, name):
+        super().__init__(name, "Meow")
+
+    def speak(self):
+        return f"{self.name} says {self.sound}... but only when it wants to."
+
+
+# Usage
+dog = Dog("Rex")
+cat = Cat("Luna")
+
+print(dog.speak())
+print(cat.speak())
+print(dog.learn("sit"))
+print(dog.learn("roll over"))
+print(dog.perform())` };
+  }
+
+  if (t.includes("sort") || t.includes("sorting") || t.includes("algorithm")) {
+    const lang = t.includes("python") ? "python" : "js";
+    if (lang === "python") {
+      return { lang:"python", name:"sorting.py", code:`# Sorting Algorithms in Python
+
+def bubble_sort(arr):
+    n = len(arr)
+    for i in range(n):
+        for j in range(0, n-i-1):
+            if arr[j] > arr[j+1]:
+                arr[j], arr[j+1] = arr[j+1], arr[j]
+    return arr
+
+def merge_sort(arr):
+    if len(arr) <= 1:
+        return arr
+    mid = len(arr) // 2
+    left = merge_sort(arr[:mid])
+    right = merge_sort(arr[mid:])
+    return merge(left, right)
+
+def merge(left, right):
+    result = []
+    i = j = 0
+    while i < len(left) and j < len(right):
+        if left[i] <= right[j]:
+            result.append(left[i]); i += 1
+        else:
+            result.append(right[j]); j += 1
+    result.extend(left[i:]); result.extend(right[j:])
+    return result
+
+def quick_sort(arr):
+    if len(arr) <= 1:
+        return arr
+    pivot = arr[len(arr) // 2]
+    left = [x for x in arr if x < pivot]
+    mid  = [x for x in arr if x == pivot]
+    right = [x for x in arr if x > pivot]
+    return quick_sort(left) + mid + quick_sort(right)
+
+data = [64, 34, 25, 12, 22, 11, 90]
+print("Original: ", data)
+print("Bubble:   ", bubble_sort(data[:]))
+print("Merge:    ", merge_sort(data[:]))
+print("Quick:    ", quick_sort(data[:]))` };
+    }
+    return { lang:"js", name:"sorting.js", code:`// Sorting Algorithms in JavaScript
+
+function bubbleSort(arr) {
+  arr = [...arr];
+  for (let i = 0; i < arr.length; i++)
+    for (let j = 0; j < arr.length - i - 1; j++)
+      if (arr[j] > arr[j+1]) [arr[j], arr[j+1]] = [arr[j+1], arr[j]];
+  return arr;
+}
+
+function mergeSort(arr) {
+  if (arr.length <= 1) return arr;
+  const mid = Math.floor(arr.length / 2);
+  const left = mergeSort(arr.slice(0, mid));
+  const right = mergeSort(arr.slice(mid));
+  return merge(left, right);
+}
+
+function merge(left, right) {
+  const result = []; let i = 0, j = 0;
+  while (i < left.length && j < right.length)
+    result.push(left[i] <= right[j] ? left[i++] : right[j++]);
+  return result.concat(left.slice(i), right.slice(j));
+}
+
+function quickSort(arr) {
+  if (arr.length <= 1) return arr;
+  const pivot = arr[Math.floor(arr.length / 2)];
+  return [
+    ...quickSort(arr.filter(x => x < pivot)),
+    ...arr.filter(x => x === pivot),
+    ...quickSort(arr.filter(x => x > pivot))
+  ];
+}
+
+const data = [64, 34, 25, 12, 22, 11, 90];
+console.log('Original:', data);
+console.log('Bubble:  ', bubbleSort(data));
+console.log('Merge:   ', mergeSort(data));
+console.log('Quick:   ', quickSort(data));` };
+  }
+
+  if (t.includes("express") || t.includes("api server") || t.includes("rest api") || t.includes("node") && t.includes("server")) {
+    return { lang:"js", name:"server.js", code:`// Express REST API Server
+const express = require('express');
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  next();
+});
+
+// In-memory store
+let items = [
+  { id: 1, name: 'Item 1', done: false },
+  { id: 2, name: 'Item 2', done: true },
+];
+let nextId = 3;
+
+// GET all
+app.get('/api/items', (req, res) => {
+  res.json({ success: true, data: items });
+});
+
+// GET by id
+app.get('/api/items/:id', (req, res) => {
+  const item = items.find(i => i.id === parseInt(req.params.id));
+  if (!item) return res.status(404).json({ error: 'Not found' });
+  res.json({ success: true, data: item });
+});
+
+// POST create
+app.post('/api/items', (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ error: 'Name required' });
+  const item = { id: nextId++, name, done: false };
+  items.push(item);
+  res.status(201).json({ success: true, data: item });
+});
+
+// PATCH update
+app.patch('/api/items/:id', (req, res) => {
+  const item = items.find(i => i.id === parseInt(req.params.id));
+  if (!item) return res.status(404).json({ error: 'Not found' });
+  Object.assign(item, req.body);
+  res.json({ success: true, data: item });
+});
+
+// DELETE
+app.delete('/api/items/:id', (req, res) => {
+  items = items.filter(i => i.id !== parseInt(req.params.id));
+  res.json({ success: true });
+});
+
+app.listen(PORT, () => console.log(\`Server running on http://localhost:\${PORT}\`));` };
+  }
+
+  if (t.includes("react") && (t.includes("component") || t.includes("hook") || t.includes("app"))) {
+    return { lang:"jsx", name:"App.jsx", code:`import { useState, useEffect } from 'react';
+
+// Custom hook for localStorage
+function useLocalStorage(key, initial) {
+  const [value, setValue] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(key)) ?? initial; }
+    catch { return initial; }
+  });
+  useEffect(() => {
+    localStorage.setItem(key, JSON.stringify(value));
+  }, [key, value]);
+  return [value, setValue];
+}
+
+// Main App
+export default function App() {
+  const [items, setItems] = useLocalStorage('items', []);
+  const [input, setInput] = useState('');
+  const [filter, setFilter] = useState('all');
+
+  const add = () => {
+    if (!input.trim()) return;
+    setItems(prev => [...prev, { id: Date.now(), text: input.trim(), done: false }]);
+    setInput('');
+  };
+
+  const toggle = (id) => setItems(prev =>
+    prev.map(i => i.id === id ? { ...i, done: !i.done } : i)
+  );
+
+  const remove = (id) => setItems(prev => prev.filter(i => i.id !== id));
+
+  const filtered = items.filter(i =>
+    filter === 'all' ? true : filter === 'done' ? i.done : !i.done
+  );
+
+  return (
+    <div style={{ maxWidth: 500, margin: '40px auto', fontFamily: 'Arial' }}>
+      <h1 style={{ color: '#7a2cff' }}>React Todo</h1>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && add()}
+          placeholder="Add item..."
+          style={{ flex: 1, padding: 8, borderRadius: 6, border: '1px solid #ccc' }}
+        />
+        <button onClick={add} style={{ padding: '8px 16px', background: '#7a2cff', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+          Add
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        {['all', 'active', 'done'].map(f => (
+          <button key={f} onClick={() => setFilter(f)}
+            style={{ padding: '4px 12px', borderRadius: 20, border: '1px solid #7a2cff',
+              background: filter === f ? '#7a2cff' : 'transparent', color: filter === f ? 'white' : '#7a2cff', cursor: 'pointer' }}>
+            {f}
+          </button>
+        ))}
+      </div>
+
+      {filtered.map(item => (
+        <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+          background: '#f5f5f5', borderRadius: 8, marginBottom: 6 }}>
+          <input type="checkbox" checked={item.done} onChange={() => toggle(item.id)} />
+          <span style={{ flex: 1, textDecoration: item.done ? 'line-through' : 'none', opacity: item.done ? 0.5 : 1 }}>
+            {item.text}
+          </span>
+          <button onClick={() => remove(item.id)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999', fontSize: 16 }}>✕</button>
+        </div>
+      ))}
+
+      <p style={{ color: '#999', fontSize: 13 }}>{items.filter(i=>!i.done).length} remaining</p>
+    </div>
+  );
+}` };
+  }
+
+  if (t.includes("python") && (t.includes("script") || t.includes("file") || t.includes("example") || t.includes("basic"))) {
+    return { lang:"python", name:"example.py", code:`# Python Example Script
+import math
+import random
+from datetime import datetime
+
+def greet(name: str) -> str:
+    """Return a greeting string."""
+    return f"Hello, {name}! 👋"
+
+def calculate_stats(numbers: list) -> dict:
+    """Calculate basic statistics for a list of numbers."""
+    if not numbers:
+        return {}
+    return {
+        "count": len(numbers),
+        "sum": sum(numbers),
+        "mean": sum(numbers) / len(numbers),
+        "min": min(numbers),
+        "max": max(numbers),
+        "std_dev": math.sqrt(sum((x - sum(numbers)/len(numbers))**2 for x in numbers) / len(numbers))
+    }
+
+def fizzbuzz(n: int) -> list:
+    """Classic FizzBuzz."""
+    result = []
+    for i in range(1, n + 1):
+        if i % 15 == 0: result.append("FizzBuzz")
+        elif i % 3 == 0: result.append("Fizz")
+        elif i % 5 == 0: result.append("Buzz")
+        else: result.append(str(i))
+    return result
+
+if __name__ == "__main__":
+    print(greet("Dolores"))
+    
+    data = [random.randint(1, 100) for _ in range(10)]
+    print(f"Data: {data}")
+    stats = calculate_stats(data)
+    for k, v in stats.items():
+        print(f"  {k}: {v:.2f}" if isinstance(v, float) else f"  {k}: {v}")
+    
+    print("FizzBuzz 1-20:", " ".join(fizzbuzz(20)))
+    print("Current time:", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))` };
+  }
+
+  // Generic JS example for anything else code-related
+  return { lang:"js", name:"example.js", code:`// JavaScript Example
+// Ask Dolores for something more specific:
+// "write a todo app", "make a calculator", "build a quiz",
+// "create a timer", "write a sorting algorithm",
+// "make a React component", "build an Express API"
+
+function greet(name) {
+  return \`Hello, \${name}! 👋\`;
+}
+
+// Array operations
+const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+const evens    = numbers.filter(n => n % 2 === 0);
+const doubled  = evens.map(n => n * 2);
+const sum      = doubled.reduce((a, b) => a + b, 0);
+
+console.log(greet('Dolores'));
+console.log('Evens doubled and summed:', sum);
+
+// Async example
+async function fetchData(url) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(\`HTTP \${res.status}\`);
+    return await res.json();
+  } catch(e) {
+    console.error('Fetch failed:', e.message);
+    return null;
+  }
+}
+
+// Class example
+class Stack {
+  #items = [];
+  push(item) { this.#items.push(item); }
+  pop()      { return this.#items.pop(); }
+  peek()     { return this.#items[this.#items.length - 1]; }
+  get size() { return this.#items.length; }
+  isEmpty()  { return this.#items.length === 0; }
+}
+
+const stack = new Stack();
+[1, 2, 3].forEach(n => stack.push(n));
+console.log('Stack peek:', stack.peek(), '| Size:', stack.size);` };
+}
+
 function tryTemplateMatch(input) {
-  if (!templatesDB.projects) return null;
-  const lower = input.toLowerCase();
-  for (const [name, tpl] of Object.entries(templatesDB.projects)) {
-    if (lower.includes(name.replace(/_/g," "))) {
-      return tpl;
+  // First try templates.json entries
+  if (templatesDB && templatesDB.projects) {
+    const lower = input.toLowerCase();
+    for (const [name, tpl] of Object.entries(templatesDB.projects)) {
+      if (lower.includes(name.replace(/_/g," "))) return { fromTemplate: true, ...tpl };
     }
   }
-  if (lower.includes("todo") || lower.includes("to-do")) return templatesDB.projects.todo_app;
-  if (lower.includes("express") || lower.includes("api server")) return templatesDB.projects.express_api;
+  // Then try built-in code generator
+  if (isCodeRequest(input)) {
+    const result = generateCode(input);
+    if (result) return { fromCode: true, lang: result.lang, name: result.name, code: result.code };
+  }
   return null;
 }
 
@@ -891,14 +1633,27 @@ async function doloresRespond(input) {
     // If math engine couldn't parse it, fall through to AI
   }
 
-  // ── 3. Template / project builder ────────────────────────────
+  // ── 3. Template / code generator ─────────────────────────────
   const tpl = tryTemplateMatch(input);
-  if (tpl && tpl.files) {
+  if (tpl) {
     typingDiv.remove();
-    const label = document.createElement("div");
-    label.className = "doloresMsg"; label.innerText = "Here's your project:";
-    document.getElementById("chatContent").appendChild(label);
-    renderWithFood({ type:"project", files:tpl.files });
+    if (tpl.fromTemplate && tpl.files) {
+      // templates.json project (multiple files)
+      const label = document.createElement("div");
+      label.className = "doloresMsg"; label.innerText = "Here's your project:";
+      document.getElementById("chatContent").appendChild(label);
+      renderWithFood({ type:"project", files:tpl.files });
+    } else if (tpl.fromCode) {
+      // built-in code generator — single file, open in Monaco
+      const extMap = {js:"JavaScript",jsx:"React",html:"HTML",css:"CSS",py:"Python",java:"Java",cpp:"C++",ts:"TypeScript"};
+      const label = document.createElement("div");
+      label.className = "doloresMsg";
+      label.innerText = `Here's your ${extMap[tpl.lang] || tpl.lang} code!`;
+      document.getElementById("chatContent").appendChild(label);
+      const file = { name: tpl.name, content: tpl.code };
+      renderFileCard(file);
+      saveMessage("dolores", `Here's your ${extMap[tpl.lang] || tpl.lang} code!`, file);
+    }
     return;
   }
 
@@ -1183,6 +1938,127 @@ function copySystemPrompt() {
     const el = document.getElementById("promptCopied");
     if (el) { el.style.display = "block"; setTimeout(() => el.style.display = "none", 2000); }
   });
+}
+
+function downloadIntegrationJS() {
+  const code = `// dolores-integration.js
+// Drop into any project to use Dolores's knowledge base + image gen
+// All files from aidolores.github.io are loaded automatically.
+
+const Dolores = {
+  kb: {},           // flat knowledge base (smart.json)
+  functions: {},    // code patterns (functions.json)
+  templates: {},    // project templates (templates.json)
+  ready: false,
+
+  async init() {
+    const BASE = 'https://aidolores.github.io';
+    const [smart, funcs, tpls] = await Promise.all([
+      fetch(BASE + '/smart.json').then(r => r.json()),
+      fetch(BASE + '/functions.json').then(r => r.json()),
+      fetch(BASE + '/templates.json').then(r => r.json()),
+    ]);
+    // Flatten smart.json categories into one lookup
+    if (smart.knowledge)
+      Object.values(smart.knowledge).forEach(cat =>
+        Object.assign(this.kb, cat));
+    if (smart.debug) Object.assign(this.kb, smart.debug);
+    this.functions = funcs;
+    this.templates = tpls;
+    this.ready = true;
+    console.log('[Dolores] Loaded', Object.keys(this.kb).length,
+      'KB entries,', Object.keys(this.templates.projects||{}).length,
+      'templates');
+    return this;
+  },
+
+  // Query the knowledge base — returns best match or null
+  query(input) {
+    const lower = input.toLowerCase();
+    const words = lower.split(/\\W+/).filter(w => w.length > 2);
+    let best = 0, result = null;
+    for (const [key, val] of Object.entries(this.kb)) {
+      let score = 0;
+      if (lower.includes(key)) score += 10;
+      key.split(' ').forEach(kw => { if (lower.includes(kw)) score += 3; });
+      words.forEach(w => { if (key.includes(w)) score += 2; });
+      words.forEach(w => { if (val.toLowerCase().includes(w)) score += 1; });
+      if (score > best) { best = score; result = val; }
+    }
+    return best >= 2 ? result : null;
+  },
+
+  // Generate an image URL via Pollinations.ai (free, no key needed)
+  imageURL(prompt, w = 512, h = 512) {
+    return 'https://image.pollinations.ai/prompt/' +
+      encodeURIComponent(prompt) +
+      '?width=' + w + '&height=' + h + '&nologo=true';
+  },
+
+  // Get a project template by name (from templates.json)
+  template(name) {
+    return this.templates?.projects?.[name] || null;
+  },
+
+  // Full respond: KB first, then optional OpenRouter AI fallback
+  async respond(input, openRouterKey = null) {
+    const kbAnswer = this.query(input);
+    if (kbAnswer) return { source: 'kb', text: kbAnswer };
+
+    if (openRouterKey) {
+      try {
+        const res = await fetch(
+          'https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + openRouterKey,
+            'HTTP-Referer': 'https://aidolores.github.io',
+            'X-Title': 'Dolores',
+          },
+          body: JSON.stringify({
+            model: 'openrouter/auto',
+            messages: [{ role: 'user', content: input }],
+            max_tokens: 1000,
+          }),
+        });
+        const data = await res.json();
+        const text = data.choices?.[0]?.message?.content?.trim();
+        if (text) return { source: 'ai', text };
+      } catch(e) { console.warn('[Dolores] AI failed:', e.message); }
+    }
+    return { source: 'none', text: null };
+  },
+};
+
+// Auto-init when script loads
+Dolores.init();
+
+// ── Usage examples ─────────────────────────────────────────────
+//
+// 1. Basic query:
+//    await Dolores.init();
+//    const answer = Dolores.query("what is javascript");
+//    console.log(answer);
+//
+// 2. Full response with AI fallback:
+//    const res = await Dolores.respond("explain recursion", "sk-or-v1-YOUR_KEY");
+//    console.log(res.source, res.text);
+//
+// 3. Generate an image:
+//    const url = Dolores.imageURL("purple dragon at sunset");
+//    document.querySelector('img').src = url;
+//
+// 4. Get a project template:
+//    const todo = Dolores.template("todo_app");
+//    console.log(todo.files); // { "index.html": "...", "app.js": "..." }
+`;
+  const blob = new Blob([code], { type: "text/javascript" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "dolores-integration.js";
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 function deleteAllData() {

@@ -1964,20 +1964,125 @@ function listenForCommand() {
 }
 
 // ── Settings ──────────────────────────────────────────────────────
-function openSettings() {
+
+// Simple Web Crypto helpers to protect the stored API key.
+async function deriveKeyFromPassphrase(passphrase, salt) {
+  const enc = new TextEncoder();
+  const baseKey = await window.crypto.subtle.importKey(
+    "raw",
+    enc.encode(passphrase),
+    "PBKDF2",
+    false,
+    ["deriveKey"]
+  );
+  return window.crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: salt,
+      iterations: 100000,
+      hash: "SHA-256"
+    },
+    baseKey,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+async function encryptApiKey(plainKey) {
+  if (!plainKey) return "";
+  const passphrase = window.prompt("Set a passphrase to protect your API key (you must remember this):","");
+  if (!passphrase) {
+    // User cancelled; do not store the key.
+    return "";
+  }
+  const enc = new TextEncoder();
+  const salt = window.crypto.getRandomValues(new Uint8Array(16));
+  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKeyFromPassphrase(passphrase, salt);
+  const cipherBuf = await window.crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: iv },
+    key,
+    enc.encode(plainKey)
+  );
+  const cipherBytes = new Uint8Array(cipherBuf);
+  const toBase64 = bytes => btoa(String.fromCharCode.apply(null, bytes));
+  const payload = {
+    iv: toBase64(iv),
+    salt: toBase64(salt),
+    cipher: toBase64(cipherBytes)
+  };
+  return JSON.stringify(payload);
+}
+
+async function decryptApiKey(storedValue) {
+  if (!storedValue) return "";
+  let data;
+  try {
+    data = JSON.parse(storedValue);
+  } catch (e) {
+    // Legacy: value is stored in clear text.
+    return storedValue;
+  }
+  if (!data || !data.iv || !data.salt || !data.cipher) {
+    return "";
+  }
+  const fromBase64 = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const iv = fromBase64(data.iv);
+  const salt = fromBase64(data.salt);
+  const cipherBytes = fromBase64(data.cipher);
+  const passphrase = window.prompt("Enter the passphrase to unlock your API key:","");
+  if (!passphrase) {
+    return "";
+  }
+  const key = await deriveKeyFromPassphrase(passphrase, salt);
+  try {
+    const plainBuf = await window.crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: iv },
+      key,
+      cipherBytes
+    );
+    const dec = new TextDecoder();
+    return dec.decode(plainBuf);
+  } catch (e) {
+    // Wrong passphrase or corrupted data.
+    return "";
+  }
+}
+
+async function openSettings() {
   document.getElementById("settingsOverlay").style.display = "block";
-  // Load saved API key into input
-  const saved = localStorage.getItem("doloresApiKey") || "";
+  // Load saved API key into input (decrypting if necessary)
+  const stored = localStorage.getItem("doloresApiKey") || "";
+  let plainKey = "";
+  if (stored) {
+    if (typeof stored === "string" && stored.trim().startsWith("{")) {
+      // Likely encrypted payload
+      plainKey = await decryptApiKey(stored);
+    } else {
+      // Legacy cleartext
+      plainKey = stored;
+    }
+  }
   const input = document.getElementById("apiKeyInput");
-  if (input) input.value = saved;
-  updateApiKeyStatus(saved);
+  if (input) input.value = plainKey;
+  updateApiKeyStatus(plainKey);
 }
 
 function closeSettings() { document.getElementById("settingsOverlay").style.display = "none"; }
 
-function saveApiKeyLive() {
-  const val = document.getElementById("apiKeyInput").value.trim();
-  localStorage.setItem("doloresApiKey", val);
+async function saveApiKeyLive() {
+  const inputEl = document.getElementById("apiKeyInput");
+  const val = inputEl ? inputEl.value.trim() : "";
+  if (!val) {
+    localStorage.removeItem("doloresApiKey");
+    updateApiKeyStatus("");
+    return;
+  }
+  const encrypted = await encryptApiKey(val);
+  if (encrypted) {
+    localStorage.setItem("doloresApiKey", encrypted);
+  }
   updateApiKeyStatus(val);
 }
 

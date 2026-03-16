@@ -1,4 +1,4 @@
-`// dolores-integration.js
+// dolores-integration.js
 // Drop into any project to use Dolores's knowledge base + image gen
 // All files from aidolores.github.io are loaded automatically.
 
